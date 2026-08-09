@@ -6,7 +6,7 @@ import {
   ShieldAlert,
   type LucideIcon,
 } from "lucide-react";
-import type { NotificationType } from "@/convex/_generated/dataModel";
+import type { NotificationType } from "@/convex/schema";
 import { cn } from "@/lib/utils";
 
 export type AlertStatusBadge = "sent" | "delivered" | "cancelled" | "failed";

@@ -1,6 +1,8 @@
 import '@vly-ai/integrations';
 import { Toaster } from "@/components/ui/sonner";
 import { RequireAuth } from "@/components/RequireAuth";
+import { RequireAdmin } from "@/components/layout/RequireAdmin";
+import { AppShell } from "@/components/layout/AppShell";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
@@ -13,13 +15,25 @@ import "./index.css";
 const Landing = lazy(() => import("./pages/Landing.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
+const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
+const Contacts = lazy(() => import("./pages/Contacts.tsx"));
+const LocationPage = lazy(() => import("./pages/LocationPage.tsx"));
+const AlertsHistory = lazy(() => import("./pages/AlertsHistory.tsx"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage.tsx"));
+const Profile = lazy(() => import("./pages/Profile.tsx"));
+const Admin = lazy(() => import("./pages/Admin.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-pulse text-muted-foreground">Loading...</div>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3">
+        <div className="size-8 animate-spin rounded-full border-2 border-violet-400/30 border-t-violet-400" />
+        <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+          Loading…
+        </div>
+      </div>
     </div>
   );
 }
@@ -82,8 +96,6 @@ class RootErrorBoundary extends React.Component<
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
-
-
 function RouteSyncer() {
   const location = useLocation();
   useEffect(() => {
@@ -107,6 +119,14 @@ function RouteSyncer() {
   return null;
 }
 
+/** Authenticated routes share the app shell. */
+function Protected({ children }: { children: React.ReactNode }) {
+  return (
+    <RequireAuth>
+      <AppShell>{children}</AppShell>
+    </RequireAuth>
+  );
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -124,11 +144,22 @@ createRoot(document.getElementById("root")!).render(
                 path="/auth"
                 element={<AuthPage redirectAfterAuth="/dashboard" />}
               />
+              <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+              <Route path="/setup" element={<Protected><Onboarding /></Protected>} />
+              <Route path="/contacts" element={<Protected><Contacts /></Protected>} />
+              <Route path="/location" element={<Protected><LocationPage /></Protected>} />
+              <Route path="/alerts" element={<Protected><AlertsHistory /></Protected>} />
+              <Route path="/notifications" element={<Protected><NotificationsPage /></Protected>} />
+              <Route path="/profile" element={<Protected><Profile /></Protected>} />
               <Route
-                path="/dashboard"
+                path="/admin"
                 element={
                   <RequireAuth>
-                    <Dashboard />
+                    <RequireAdmin>
+                      <AppShell>
+                        <Admin />
+                      </AppShell>
+                    </RequireAdmin>
                   </RequireAuth>
                 }
               />
@@ -136,7 +167,7 @@ createRoot(document.getElementById("root")!).render(
             </Routes>
           </Suspense>
         </BrowserRouter>
-        <Toaster />
+        <Toaster theme="dark" position="top-center" richColors />
       </ConvexAuthProvider>
     </RootErrorBoundary>
   </StrictMode>,

@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { motion } from "framer-motion";
+import { motion, type TargetAndTransition, type Transition } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -386,22 +386,27 @@ function Art({ kind, id }: { kind: IllustrationKind; id: string }) {
 /* Components                                                          */
 /* ------------------------------------------------------------------ */
 
-const animationVariants = {
+type AnimVariant = {
+  animate?: TargetAndTransition;
+  transition?: Transition;
+};
+
+const animationVariants: Record<string, AnimVariant> = {
   float: {
     animate: { y: [0, -10, 0] },
-    transition: { duration: 5.5, repeat: Infinity, ease: "easeInOut" as const },
+    transition: { duration: 5.5, repeat: Infinity, ease: "easeInOut" },
   },
   breathe: {
     animate: { scale: [1, 1.035, 1] },
-    transition: { duration: 5, repeat: Infinity, ease: "easeInOut" as const },
+    transition: { duration: 5, repeat: Infinity, ease: "easeInOut" },
   },
   pulse: {
     animate: { opacity: [0.85, 1, 0.85], scale: [1, 1.02, 1] },
-    transition: { duration: 2.8, repeat: Infinity, ease: "easeInOut" as const },
+    transition: { duration: 2.8, repeat: Infinity, ease: "easeInOut" },
   },
   heartbeat: {
     animate: { scale: [1, 1.05, 1, 1.03, 1] },
-    transition: { duration: 1.6, repeat: Infinity, ease: "easeInOut" as const },
+    transition: { duration: 1.6, repeat: Infinity, ease: "easeInOut" },
   },
   none: {},
 };
@@ -530,11 +535,7 @@ export function EmptyStateIllustration({
 export function HeroIllustration({ className }: { className?: string }) {
   return (
     <div className={cn("relative", className)}>
-      <IllustrationCard kind="hero" className="glow-lavender">
-        <div className="relative mx-auto max-w-md px-6 pb-8 pt-2 sm:px-10">
-          <AnimatedIllustration kind="hero" />
-        </div>
-      </IllustrationCard>
+      <IllustrationCard kind="hero" className="glow-lavender" />
       <div className="glass animate-float-y absolute -left-2 top-8 hidden items-center gap-2 rounded-2xl px-4 py-2.5 shadow-lg sm:flex">
         <span className="flex size-2.5 rounded-full bg-emerald-400" />
         <span className="font-mono text-xs font-medium text-foreground/80">SOS · READY</span>

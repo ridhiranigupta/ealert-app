@@ -1,26 +1,49 @@
-import { motion } from "framer-motion";
+import { ArrowRight, Home } from "lucide-react";
+import { Link } from "react-router";
+import { Logo } from "@/components/brand/Logo";
+import { Button } from "@/components/ui/button";
+import { AnimatedIllustration } from "@/lib/illustrations";
 
 export default function NotFound() {
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="min-h-screen flex flex-col"
-    >
-
-      
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="max-w-5xl mx-auto relative px-4">
-          <div className="flex items-center justify-center min-h-[200px]">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
-              <p className="text-lg text-gray-600">Page Not Found</p>
-            </div>
-          </div>
-        </div>
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-4">
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -top-24 left-1/3 h-80 w-80 rounded-full bg-violet-600/15 blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
+        <div className="bg-grid absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
       </div>
-    </motion.div>
+
+      <div className="mb-8">
+        <Logo />
+      </div>
+
+      <div className="w-52">
+        <AnimatedIllustration kind="error" className="w-52" />
+      </div>
+
+      <p className="mt-4 font-mono text-xs uppercase tracking-[0.3em] text-violet-300">Error 404</p>
+      <h1 className="mt-3 text-center font-display text-3xl font-bold tracking-tight sm:text-4xl">
+        This signal went dark
+      </h1>
+      <p className="mx-auto mt-3 max-w-md text-center text-sm leading-relaxed text-muted-foreground">
+        The page you're looking for doesn't exist or was moved. Your safety net is still here —
+        let's get you back to it.
+      </p>
+
+      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <Button asChild className="rounded-xl bg-primary px-6 text-primary-foreground hover:bg-primary/90">
+          <Link to="/">
+            <Home className="size-4" />
+            Back home
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="rounded-xl border-white/12 bg-white/[0.03] hover:bg-white/[0.08]">
+          <Link to="/dashboard">
+            My dashboard
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+      </div>
+    </div>
   );
 }
