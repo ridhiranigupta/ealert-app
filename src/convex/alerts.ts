@@ -289,13 +289,16 @@ export const triggerSOS = mutation({
         const errors = pushResult.results.filter(
           (r) => groupTokens.has(r.device.token) && !r.ok,
         );
+        const noDevice = group.devices.length === 0;
         verifiedOutcomes.set(group.contact._id, {
           outcome: accepted
             ? { status: "sent", channel: "push", provider: pushResult.provider ?? "push" }
             : {
                 status: "queued",
                 channel: "push",
-                error: errors[0]?.error ?? "provider_not_configured",
+                error: noDevice
+                  ? "no_device_registered"
+                  : (errors[0]?.error ?? "provider_not_configured"),
               },
           pushStatus: accepted ? "sent" : "pending",
           recipientUserId: group.contact.contactUserId,

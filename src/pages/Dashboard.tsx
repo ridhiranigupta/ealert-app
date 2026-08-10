@@ -50,6 +50,7 @@ export default function Dashboard() {
   const profile = useQuery(api.profiles.getProfile);
   const latestLocation = useQuery(api.locations.latest);
   const activeSession = useQuery(api.emergencySessions.myActiveSession);
+  const contactSessions = useQuery(api.emergencySessions.listSessionsForContact);
 
   const completion = profile?.profile ? profileCompletion(profile.profile) : 0;
   const firstName = user?.name?.split(/\s+/)[0] ?? "there";
@@ -71,6 +72,58 @@ export default function Dashboard() {
         </h1>
         <p className="text-muted-foreground">Stay safe. We're here when you need us.</p>
       </motion.div>
+
+      {/* Emergencies where I'm a verified contact */}
+      {contactSessions && contactSessions.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="overflow-hidden rounded-[1.5rem] border border-rose-200 bg-gradient-to-br from-rose-50 via-rose-50/40 to-white p-5 sm:p-6"
+        >
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="relative flex size-14 shrink-0 items-center justify-center">
+              <span className="animate-sos-ring absolute inset-0 rounded-full border-2 border-rose-400/60" />
+              <span className="flex size-11 items-center justify-center rounded-full bg-rose-500 text-white shadow-lg shadow-rose-500/30">
+                <Siren className="size-6" />
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-lg font-bold text-rose-700">Someone needs your help</p>
+              <p className="text-xs text-muted-foreground">
+                You're a verified emergency contact for {contactSessions.length} active EAlert
+                emergency{contactSessions.length === 1 ? "" : "ies"} — open the session to see
+                their live status and respond.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-2.5">
+            {contactSessions.map((s) => (
+              <div
+                key={s._id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200/80 bg-white/80 px-4 py-3 transition-colors hover:bg-white"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-500">
+                    <HeartHandshake className="size-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{s.ownerName}</p>
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Started {formatRelative(s.startedAt)} · {s.status}
+                    </p>
+                  </div>
+                </div>
+                <Button asChild size="sm" className="rounded-xl bg-rose-500 text-white hover:bg-rose-600">
+                  <Link to={`/emergency/${s._id}`}>
+                    Open emergency <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/* Active emergency session */}
       {activeSession && (

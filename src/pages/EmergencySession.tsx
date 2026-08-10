@@ -39,6 +39,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { RecipientStatusTag } from "@/components/shared/status";
 import { useOnlineStatus } from "@/hooks/use-online";
 import { formatTime, timeAgo } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 const EMERGENCY_NUMBER =
   (import.meta.env.VITE_EMERGENCY_NUMBER as string | undefined) ?? "911";
@@ -92,10 +93,9 @@ export default function EmergencySession() {
   const watchRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const session = data?.session;
   const myRole = data?.myRole ?? null;
   const isOpen =
-    session?.status === "active" || session?.status === "responding";
+    data?.session?.status === "active" || data?.session?.status === "responding";
 
   // Verified contacts: record that they opened the session (once).
   useEffect(() => {
@@ -285,6 +285,7 @@ export default function EmergencySession() {
       </div>
     );
   }
+  const session = data.session;
 
   return (
     <div className="space-y-6">
@@ -528,8 +529,8 @@ export default function EmergencySession() {
                         <p className="truncate text-sm font-medium">{r.contactName}</p>
                         <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                           {r.appRecipient ? "EAlert app" : r.channel ?? "sms"}
-                          {r.pushStatus ? ` · push ${r.pushStatus}` : ""}
                         </p>
+                        <AppDeliveryTag pushStatus={r.pushStatus} />
                       </div>
                     </div>
                     <RecipientStatusTag status={r.deliveryStatus} />
@@ -723,6 +724,30 @@ export default function EmergencySession() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/** App-to-app push delivery lifecycle: pending → sent → opened → responding. */
+function AppDeliveryTag({ pushStatus }: { pushStatus?: string }) {
+  const meta: Record<string, { label: string; className: string }> = {
+    pending: { label: "Push pending", className: "border-amber-200 bg-amber-50 text-amber-700" },
+    sent: { label: "Sent to device", className: "border-sky-200 bg-sky-50 text-sky-700" },
+    delivered: { label: "Delivered", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+    opened: { label: "Opened", className: "border-violet-200 bg-violet-50 text-violet-700" },
+    active: { label: "Responding", className: "border-emerald-300 bg-emerald-100 text-emerald-700" },
+  };
+  if (!pushStatus) return null;
+  const m = meta[pushStatus] ?? meta.pending;
+  return (
+    <span
+      className={cn(
+        "mt-1 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider",
+        m.className,
+      )}
+    >
+      <span className="size-1.5 rounded-full bg-current" />
+      {m.label}
+    </span>
   );
 }
 

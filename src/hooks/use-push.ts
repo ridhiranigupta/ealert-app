@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 
 export type PushPermission = "unsupported" | "default" | "denied" | "granted";
 
-function base64UrlToUint8Array(value: string): Uint8Array {
+function base64UrlToUint8Array(value: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
   const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(base64);
-  const bytes = new Uint8Array(raw.length);
+  // Explicit ArrayBuffer backing so the result satisfies BufferSource
+  // (PushManager.subscribe applicationServerKey) across TS DOM lib versions.
+  const bytes = new Uint8Array(new ArrayBuffer(raw.length));
   for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
   return bytes;
 }
