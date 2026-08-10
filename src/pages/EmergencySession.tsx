@@ -37,6 +37,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { RecipientStatusTag } from "@/components/shared/status";
+import { EmergencyVideoRoom } from "@/components/emergency/EmergencyVideoRoom";
 import { useOnlineStatus } from "@/hooks/use-online";
 import { formatTime, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -261,14 +262,7 @@ export default function EmergencySession() {
     }
   };
 
-  const videoRoomUrl = useMemo(() => {
-    if (!videoJoin?.token) return null;
-    if (videoJoin.url) {
-      const base = videoJoin.url.replace(/^wss:\/\//, "https://").replace(/\/$/, "");
-      return `${base}/?access_token=${encodeURIComponent(videoJoin.token)}`;
-    }
-    return null;
-  }, [videoJoin]);
+  const videoRoomUrl = null;
 
   if (!id) {
     return (
@@ -426,33 +420,34 @@ export default function EmergencySession() {
               {!data.videoConfig.configured ? (
                 <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-700">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                  Live video requires a provider. Configure LIVEKIT_URL, LIVEKIT_API_KEY and
-                  LIVEKIT_API_SECRET to enable it.
+                  Live video is not configured yet. Please configure the LiveKit server
+                  (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET) to enable it.
+                </div>
+              ) : videoJoin?.token && videoJoin.url ? (
+                <div className="mt-4">
+                  <EmergencyVideoRoom
+                    url={videoJoin.url}
+                    token={videoJoin.token}
+                    roomName={videoJoin.roomId ?? ""}
+                    displayName={data.owner.name ?? "You"}
+                    canPublish
+                    autoPublish
+                    onLeave={handleStopVideo}
+                  />
                 </div>
               ) : data.session.videoActive ? (
                 <div className="mt-4 space-y-3">
                   <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
                     <span className="size-2 animate-pulse rounded-full bg-emerald-500" /> Live video active
                   </p>
-                  {videoRoomUrl ? (
-                    <a
-                      href={videoRoomUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex h-11 items-center justify-center gap-2 rounded-xl bg-violet-500 text-sm font-semibold text-white transition-colors hover:bg-violet-600"
-                    >
-                      <Video className="size-4" /> Open video room
-                    </a>
-                  ) : (
-                    <Button
-                      className="w-full rounded-xl bg-violet-500 text-white hover:bg-violet-600"
-                      onClick={handleStartVideo}
-                      disabled={videoBusy}
-                    >
-                      {videoBusy ? <Loader2 className="size-4 animate-spin" /> : <Video className="size-4" />}
-                      {videoJoin ? "Get video link" : "Start video"}
-                    </Button>
-                  )}
+                  <Button
+                    className="w-full rounded-xl bg-violet-500 text-white hover:bg-violet-600"
+                    onClick={handleStartVideo}
+                    disabled={videoBusy}
+                  >
+                    {videoBusy ? <Loader2 className="size-4 animate-spin" /> : <Video className="size-4" />}
+                    Start video in this window
+                  </Button>
                   <Button
                     variant="outline"
                     className="w-full rounded-xl border-rose-200 bg-white text-rose-600 hover:bg-rose-50"
@@ -584,30 +579,30 @@ export default function EmergencySession() {
             <h2 className="flex items-center gap-2 font-display text-base font-semibold">
               <Video className="size-4 text-violet-600" /> Live video
             </h2>
-            {data.session.videoActive && data.videoConfig.configured ? (
+            {videoJoin?.token && videoJoin.url ? (
+              <div className="mt-3">
+                <EmergencyVideoRoom
+                  url={videoJoin.url}
+                  token={videoJoin.token}
+                  roomName={videoJoin.roomId ?? ""}
+                  displayName="You"
+                  canPublish
+                  onLeave={() => setVideoJoin(null)}
+                />
+              </div>
+            ) : data.session.videoActive && data.videoConfig.configured ? (
               <>
                 <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-emerald-600">
                   <span className="size-2 animate-pulse rounded-full bg-emerald-500" /> Live video active
                 </p>
-                {videoRoomUrl ? (
-                  <a
-                    href={videoRoomUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 flex h-11 items-center justify-center gap-2 rounded-xl bg-violet-500 text-sm font-semibold text-white transition-colors hover:bg-violet-600"
-                  >
-                    <Video className="size-4" /> Join live video
-                  </a>
-                ) : (
-                  <Button
-                    className="mt-3 w-full rounded-xl bg-violet-500 text-white hover:bg-violet-600"
-                    onClick={handleJoinVideo}
-                    disabled={videoBusy}
-                  >
-                    {videoBusy ? <Loader2 className="size-4 animate-spin" /> : <Video className="size-4" />}
-                    Join live video
-                  </Button>
-                )}
+                <Button
+                  className="mt-3 w-full rounded-xl bg-violet-500 text-white hover:bg-violet-600"
+                  onClick={handleJoinVideo}
+                  disabled={videoBusy}
+                >
+                  {videoBusy ? <Loader2 className="size-4 animate-spin" /> : <Video className="size-4" />}
+                  Join live video
+                </Button>
               </>
             ) : data.session.videoActive ? (
               <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-700">
@@ -615,7 +610,9 @@ export default function EmergencySession() {
                 Video is active but the video provider isn't configured, so it can't be viewed here.
               </div>
             ) : (
-              <p className="mt-2 text-sm text-muted-foreground">No live video right now.</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Live video has not been enabled by the sender.
+              </p>
             )}
           </div>
 

@@ -141,6 +141,17 @@ export default defineConfig({
       'zod',
       'recharts',
       'react-resizable-panels',
+      // LiveKit real-time emergency video (WebRTC)
+      'livekit-client',
+      '@livekit/mutex',
+      '@livekit/protocol',
+      '@bufbuild/protobuf',
+      'events',
+      'loglevel',
+      'jose',
+      'typed-emitter',
+      'webrtc-adapter',
+      'sdp-transform',
       // Platform integrations (Vly toolbar + telemetry)
       '@vly-ai/integrations',
       '@zumer/snapdom',

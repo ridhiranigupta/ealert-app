@@ -32,6 +32,7 @@ async function livekitToken(opts: {
   apiSecret: string;
   room: string;
   identity: string;
+  name?: string;
   canPublish: boolean;
   ttlSeconds: number;
 }): Promise<string> {
@@ -48,6 +49,7 @@ async function livekitToken(opts: {
       JSON.stringify({
         iss: opts.apiKey,
         sub: opts.identity,
+        name: opts.name,
         exp: now + opts.ttlSeconds,
         nbf: now - 30,
         video: {
@@ -392,7 +394,7 @@ export const updateEmergencyLocation = mutation({
 export const startVideo = mutation({
   args: { sessionId: v.id("emergencySessions") },
   handler: async (ctx, args) => {
-    const { userId } = await requireUser(ctx);
+    const { userId, user } = await requireUser(ctx);
     const session = await ctx.db.get(args.sessionId);
     if (!session || session.userId !== userId) {
       throw new ConvexError("Session not found.");
@@ -436,6 +438,7 @@ export const startVideo = mutation({
       apiSecret: process.env.LIVEKIT_API_SECRET!,
       room: roomId,
       identity: userId,
+      name: user.name,
       canPublish: true,
       ttlSeconds: 6 * 3600,
     });
@@ -466,7 +469,7 @@ export const startVideo = mutation({
 export const joinVideo = mutation({
   args: { sessionId: v.id("emergencySessions") },
   handler: async (ctx, args) => {
-    const { userId } = await requireUser(ctx);
+    const { userId, user } = await requireUser(ctx);
     const session = await ctx.db.get(args.sessionId);
     if (!session) throw new ConvexError("Session not found.");
     if (!(await isVerifiedRecipientOf(ctx, session.userId, userId, session.alertId))) {
@@ -492,7 +495,8 @@ export const joinVideo = mutation({
       apiSecret: process.env.LIVEKIT_API_SECRET!,
       room: video.roomId,
       identity: userId,
-      canPublish: false,
+      name: user.name,
+      canPublish: true,
       ttlSeconds: 2 * 3600,
     });
     return {
