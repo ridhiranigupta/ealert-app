@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Star,
   Trash2,
+  UserRoundPlus,
 } from "lucide-react";
 import { ProfileAvatar } from "@/components/shared/ProfileAvatar";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +36,9 @@ export function EmergencyContactCard({
   onSetPrimary,
   onMove,
   onTest,
+  onInvite,
   testing,
+  inviting,
   busy,
 }: {
   contact: Contact;
@@ -46,7 +49,9 @@ export function EmergencyContactCard({
   onSetPrimary: (id: Id<"emergencyContacts">) => void;
   onMove: (id: Id<"emergencyContacts">, direction: "up" | "down") => void;
   onTest: (contact: Contact) => void;
+  onInvite?: (contact: Contact) => void;
   testing: boolean;
+  inviting?: boolean;
   busy?: boolean;
 }) {
   const active = contact.active !== false;
@@ -93,6 +98,16 @@ export function EmergencyContactCard({
                 Paused
               </Badge>
             )}
+            {contact.verified ? (
+              <Badge variant="outline" className="shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700">
+                <ShieldCheck className="size-3" />
+                EAlert verified
+              </Badge>
+            ) : contact.contactUserId ? (
+              <Badge variant="outline" className="shrink-0 border-amber-200 bg-amber-50 text-amber-700">
+                Invitation pending
+              </Badge>
+            ) : null}
           </div>
           <p className="text-xs font-medium text-muted-foreground">{contact.relationship}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-foreground/80">
@@ -141,6 +156,12 @@ export function EmergencyContactCard({
                 Make primary
               </DropdownMenuItem>
             )}
+            {!contact.verified && onInvite && (
+              <DropdownMenuItem onSelect={() => onInvite(contact)} disabled={inviting} className="cursor-pointer">
+                <UserRoundPlus className="mr-2 size-4" />
+                {contact.contactUserId ? "Re-send EAlert invite" : "Invite to EAlert"}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               disabled={index === 0 || busy}
               onSelect={() => onMove(contact._id, "up")}
@@ -173,6 +194,19 @@ export function EmergencyContactCard({
           Priority {contact.priority}
         </span>
         <div className="flex items-center gap-2">
+          {!contact.verified && onInvite && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              onClick={() => onInvite(contact)}
+              disabled={inviting || !active}
+              title="Connect this contact to their EAlert account"
+            >
+              {inviting ? <Loader2 className="size-3.5 animate-spin" /> : <UserRoundPlus className="size-3.5" />}
+              Invite
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

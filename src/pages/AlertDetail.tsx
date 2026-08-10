@@ -9,6 +9,7 @@ import {
   MessageSquareText,
   RefreshCw,
   ShieldAlert,
+  Siren,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
@@ -111,7 +112,17 @@ export default function AlertDetail() {
             {alert.updatedAt ? ` · updated ${formatTime(alert.updatedAt)}` : ""}
           </p>
         </div>
-        <StatusBadge status={(alert.status ?? "sent") as AlertStatusBadge} />
+        <div className="flex items-center gap-2">
+          {alert.sessionId && (
+            <Button asChild variant="outline" className="rounded-xl border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100">
+              <Link to={`/emergency/${alert.sessionId}`}>
+                <Siren className="size-4" />
+                Open emergency session
+              </Link>
+            </Button>
+          )}
+          <StatusBadge status={(alert.status ?? "sent") as AlertStatusBadge} />
+        </div>
       </div>
 
       {/* Location */}
@@ -197,6 +208,13 @@ export default function AlertDetail() {
                     {r.channel ? ` · ${r.channel}` : ""}
                     {r.provider ? ` · ${r.provider}` : ""}
                   </p>
+                  {r.pushStatus && (
+                    <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-violet-700/90">
+                      app delivery: {r.pushStatus}
+                      {r.openedAt ? ` · opened ${formatTime(r.openedAt)}` : ""}
+                      {r.respondedAt ? ` · responded ${formatTime(r.respondedAt)}` : ""}
+                    </p>
+                  )}
                   {r.providerMessageId && (
                     <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground/70">
                       provider id: {r.providerMessageId}

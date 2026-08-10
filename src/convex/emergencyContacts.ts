@@ -5,6 +5,7 @@ import { isDuplicatePhone, validatePhone } from "./lib/alertLogic";
 import { logActivity } from "./services/activity";
 import { createNotification } from "./services/notifications";
 import { dispatchTestMessage } from "./services/notify";
+import { linkRegisteredContact } from "./relationships";
 
 const MAX_CONTACTS = 10;
 const VALID_CHANNELS = ["sms", "email", "push"] as const;
@@ -94,6 +95,16 @@ export const add = mutation({
       image: args.image ? cleanInput(args.image, 500) : undefined,
     });
 
+    // App-to-app pairing: if the phone/email matches a registered EAlert
+    // account, open a pending relationship (verified only after ACCEPT).
+    await linkRegisteredContact(ctx, {
+      userId,
+      contactId: id,
+      contactName: name,
+      phone,
+      email,
+    });
+
     await logActivity(ctx, {
       userId,
       action: "contact_added",
@@ -158,6 +169,20 @@ export const update = mutation({
         throw new ConvexError("A contact with this phone number already exists.");
       }
       patch.phone = phoneCheck.normalized;
+
+      // Re-link the app pairing if the phone changed.
+      const linked = await linkRegisteredContact(ctx, {
+        userId,
+        contactId: args.id,
+        contactName: contact.name,
+        phone: phoneCheck.normalized,
+        email: args.email,
+      });
+      if (!linked.registered) {
+        patch.contactUserId = undefined;
+        patch.verified = false;
+        patch.relationshipId = undefined;
+      }
     }
 
     // Active toggle: enforce the 10-active-contact cap when enabling.

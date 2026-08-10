@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { makeClientAlertId } from "@/convex/lib/alertLogic";
+import { Link } from "react-router";
 import { AnimatedIllustration } from "@/lib/illustrations";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +74,7 @@ export interface SOSResult {
   queued?: number;
   failed?: number;
   existing?: boolean;
+  sessionId?: string;
 }
 
 interface SOSFlowValue {
@@ -178,6 +180,7 @@ export function SOSFlowProvider({ children }: { children: React.ReactNode }) {
           queued: result.queued,
           failed: result.failed,
           existing: result.existing,
+          sessionId: result.sessionId as string | undefined,
         };
         setStage("success");
       } catch (error) {
@@ -474,13 +477,25 @@ function SOSModal({
                 )}
 
                 <div className="mt-6 grid gap-2.5">
-                  <Button
-                    className="h-12 w-full rounded-xl bg-emerald-500 font-semibold text-white hover:bg-emerald-600"
-                    onClick={onClose}
-                  >
-                    <ShieldCheck className="size-4" />
-                    I'm safe — got it
-                  </Button>
+                  {result?.sessionId ? (
+                    <Button
+                      className="h-12 w-full rounded-xl bg-rose-500 font-semibold text-white hover:bg-rose-600"
+                      onClick={onClose}
+                    >
+                      <Link to={`/emergency/${result.sessionId}`} className="flex w-full items-center justify-center gap-2">
+                        <Siren className="size-4" />
+                        Open emergency session
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      className="h-12 w-full rounded-xl bg-emerald-500 font-semibold text-white hover:bg-emerald-600"
+                      onClick={onClose}
+                    >
+                      <ShieldCheck className="size-4" />
+                      I'm safe — got it
+                    </Button>
+                  )}
                   <a
                     href={`tel:${EMERGENCY_NUMBER.replace(/\D/g, "")}`}
                     className="flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-100"

@@ -10,6 +10,14 @@ export function formatRelative(ts: number | null | undefined): string {
   return formatDistanceToNow(new Date(ts), { addSuffix: true });
 }
 
+/** "10 seconds ago" style label without the suffix (".  ago"). */
+export function timeAgo(ts: number | null | undefined): string {
+  if (!ts) return "—";
+  const diff = Date.now() - ts;
+  if (diff < 10_000) return "just now";
+  return formatDistanceToNow(new Date(ts), { addSuffix: true });
+}
+
 export function formatCoords(lat: number | null | undefined, lng: number | null | undefined): string {
   if (lat == null || lng == null) return "—";
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;

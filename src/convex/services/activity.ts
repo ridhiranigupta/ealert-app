@@ -25,7 +25,17 @@ export type Action =
   | "role_changed"
   | "profile_completed"
   | "alert_viewed"
-  | "settings_updated";
+  | "settings_updated"
+  | "contact_invite_sent"
+  | "contact_invite_accepted"
+  | "contact_invite_declined"
+  | "emergency_session_created"
+  | "emergency_session_ended"
+  | "emergency_responding"
+  | "emergency_opened"
+  | "emergency_location_updated"
+  | "video_started"
+  | "video_ended";
 
 export type Result = "success" | "failed" | "cancelled" | "blocked";
 

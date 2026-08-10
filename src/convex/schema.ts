@@ -118,6 +118,7 @@ export const NOTIFICATION_TYPES = {
   ACCOUNT: "account",
   LOCATION: "location",
   SYSTEM: "system",
+  EMERGENCY: "emergency",
 } as const;
 
 export const notificationTypeValidator = v.union(
@@ -128,6 +129,7 @@ export const notificationTypeValidator = v.union(
   v.literal(NOTIFICATION_TYPES.ACCOUNT),
   v.literal(NOTIFICATION_TYPES.LOCATION),
   v.literal(NOTIFICATION_TYPES.SYSTEM),
+  v.literal(NOTIFICATION_TYPES.EMERGENCY),
 );
 export type NotificationType = Infer<typeof notificationTypeValidator>;
 
@@ -143,6 +145,57 @@ export const locationSessionStatusValidator = v.union(
   v.literal(LOCATION_SESSION_STATUSES.EXPIRED),
 );
 export type LocationSessionStatus = Infer<typeof locationSessionStatusValidator>;
+
+// Emergency session lifecycle: CREATED/ACTIVE → (LOCATION_ACTIVE, VIDEO_ACTIVE
+// as booleans) → RESPONDING → RESOLVED / CANCELLED / EXPIRED.
+export const SESSION_STATUSES = {
+  ACTIVE: "active",
+  RESPONDING: "responding",
+  RESOLVED: "resolved",
+  CANCELLED: "cancelled",
+  EXPIRED: "expired",
+} as const;
+
+export const sessionStatusValidator = v.union(
+  v.literal(SESSION_STATUSES.ACTIVE),
+  v.literal(SESSION_STATUSES.RESPONDING),
+  v.literal(SESSION_STATUSES.RESOLVED),
+  v.literal(SESSION_STATUSES.CANCELLED),
+  v.literal(SESSION_STATUSES.EXPIRED),
+);
+export type SessionStatus = Infer<typeof sessionStatusValidator>;
+
+// Verified emergency-contact relationship statuses.
+export const RELATIONSHIP_STATUSES = {
+  PENDING: "pending",
+  VERIFIED: "verified",
+  DECLINED: "declined",
+} as const;
+
+export const relationshipStatusValidator = v.union(
+  v.literal(RELATIONSHIP_STATUSES.PENDING),
+  v.literal(RELATIONSHIP_STATUSES.VERIFIED),
+  v.literal(RELATIONSHIP_STATUSES.DECLINED),
+);
+export type RelationshipStatus = Infer<typeof relationshipStatusValidator>;
+
+// Per-recipient push delivery state for app-to-app emergency delivery.
+export const PUSH_DELIVERY_STATUSES = {
+  PENDING: "pending",
+  SENT: "sent",
+  DELIVERED: "delivered",
+  OPENED: "opened",
+  ACTIVE: "active",
+} as const;
+
+export const pushDeliveryStatusValidator = v.union(
+  v.literal(PUSH_DELIVERY_STATUSES.PENDING),
+  v.literal(PUSH_DELIVERY_STATUSES.SENT),
+  v.literal(PUSH_DELIVERY_STATUSES.DELIVERED),
+  v.literal(PUSH_DELIVERY_STATUSES.OPENED),
+  v.literal(PUSH_DELIVERY_STATUSES.ACTIVE),
+);
+export type PushDeliveryStatus = Infer<typeof pushDeliveryStatusValidator>;
 
 /* ------------------------------------------------------------------ */
 /* Schema                                                              */
@@ -206,6 +259,11 @@ const schema = defineSchema(
       active: v.optional(v.boolean()),
       channels: v.optional(v.array(contactChannelValidator)),
       image: v.optional(v.string()),
+      // App-to-app pairing: set when the contact maps to a registered EAlert
+      // account. `verified` is only true after that account ACCEPTS.
+      contactUserId: v.optional(v.id("users")),
+      verified: v.optional(v.boolean()),
+      relationshipId: v.optional(v.id("contactRelationships")),
     }).index("by_userId", ["userId"]),
 
     // One row per emergency event.
@@ -227,6 +285,7 @@ const schema = defineSchema(
       channel: v.optional(v.string()), // "demo" | "sms" | "email" | "push"
       failureReason: v.optional(v.string()),
       note: v.optional(v.string()),
+      sessionId: v.optional(v.id("emergencySessions")),
     })
       .index("by_userId", ["userId"])
       .index("by_status", ["status"])
@@ -251,6 +310,11 @@ const schema = defineSchema(
       deliveredAt: v.optional(v.number()),
       lastAttemptAt: v.optional(v.number()),
       updatedAt: v.optional(v.number()),
+      // App-to-app delivery state for verified EAlert recipients.
+      recipientUserId: v.optional(v.id("users")),
+      pushStatus: v.optional(pushDeliveryStatusValidator),
+      openedAt: v.optional(v.number()),
+      respondedAt: v.optional(v.number()),
     }).index("by_alertId", ["alertId"]),
 
     // Location check-ins and SOS coords.
@@ -285,6 +349,9 @@ const schema = defineSchema(
       platform: v.string(), // "web" | "android" | "ios"
       lastSeenAt: v.number(),
       revoked: v.optional(v.boolean()),
+      notificationPermissionStatus: v.optional(v.string()),
+      pushEnabled: v.optional(v.boolean()),
+      updatedAt: v.optional(v.number()),
     })
       .index("by_userId", ["userId"])
       .index("by_token", ["token"]),
@@ -313,6 +380,69 @@ const schema = defineSchema(
     })
       .index("by_userId", ["userId"])
       .index("by_action", ["action"]),
+
+    // Verified contact relationship — app-to-app emergency access is gated
+    // on this. User B must ACCEPT before any emergency data flows to them.
+    contactRelationships: defineTable({
+      userId: v.id("users"),
+      contactUserId: v.id("users"),
+      emergencyContactId: v.id("emergencyContacts"),
+      status: relationshipStatusValidator,
+      invitedAt: v.number(),
+      respondedAt: v.optional(v.number()),
+    })
+      .index("by_userId", ["userId"])
+      .index("by_contactUserId", ["contactUserId"])
+      .index("by_pair", ["userId", "contactUserId"]),
+
+    // One emergency session per SOS alert — the lifecycle of an active
+    // emergency (location stream, video, responding, resolution).
+    emergencySessions: defineTable({
+      userId: v.id("users"),
+      alertId: v.id("alerts"),
+      status: sessionStatusValidator,
+      startedAt: v.number(),
+      updatedAt: v.optional(v.number()),
+      endedAt: v.optional(v.number()),
+      endedBy: v.optional(v.id("users")),
+      locationActive: v.boolean(),
+      videoActive: v.boolean(),
+      responderId: v.optional(v.id("users")),
+      responderName: v.optional(v.string()),
+      responderLocationShared: v.optional(v.boolean()),
+      expiresAt: v.optional(v.number()),
+    })
+      .index("by_userId", ["userId"])
+      .index("by_alertId", ["alertId"])
+      .index("by_status", ["status"]),
+
+    // Authorized live-location points during an active emergency session.
+    // Never exposed through public URLs — access is per-request authorized.
+    emergencyLocations: defineTable({
+      sessionId: v.id("emergencySessions"),
+      userId: v.id("users"),
+      lat: v.number(),
+      lng: v.number(),
+      accuracy: v.optional(v.number()),
+      timestamp: v.number(),
+      source: v.string(), // "owner" | "responder"
+    })
+      .index("by_sessionId", ["sessionId"])
+      .index("by_sessionId_time", ["sessionId", "timestamp"]),
+
+    // Live emergency video (WebRTC/LiveKit). No video bytes are stored —
+    // only the room reference and lifecycle. Join tokens are generated
+    // server-side per request and are never persisted.
+    videoSessions: defineTable({
+      emergencySessionId: v.id("emergencySessions"),
+      provider: v.string(),
+      roomId: v.string(),
+      status: v.union(v.literal("active"), v.literal("ended")),
+      createdBy: v.id("users"),
+      startedAt: v.number(),
+      endedAt: v.optional(v.number()),
+      expiresAt: v.optional(v.number()),
+    }).index("by_emergencySessionId", ["emergencySessionId"]),
   },
   {
     schemaValidation: false,

@@ -1,6 +1,9 @@
 import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import {
+  AlertTriangle,
+  BellOff,
+  BellRing,
   Camera,
   Fingerprint,
   History,
@@ -39,6 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ProfileAvatar } from "@/components/shared/ProfileAvatar";
 import { useAuth } from "@/hooks/use-auth";
+import { usePushNotifications } from "@/hooks/use-push";
 import { formatTime } from "@/lib/format";
 
 const bloodGroups = ["A+", "A−", "B+", "B−", "AB+", "AB−", "O+", "O−", "Unknown"];
@@ -220,6 +224,8 @@ export default function Profile() {
             </div>
           </div>
 
+          <PushNotificationsCard />
+
           <div className="rounded-3xl border border-rose-400/20 bg-rose-500/[0.04] p-6">
             <h2 className="flex items-center gap-2 font-display text-base font-semibold text-rose-300">
               <Trash2 className="size-4" /> Danger zone
@@ -351,6 +357,82 @@ function Field({ label, children, className }: { label: string; children: React.
     <div className={`space-y-1.5 ${className ?? ""}`}>
       <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
       {children}
+    </div>
+  );
+}
+
+/** Web push registration — the browser half of app-to-app alerts. */
+function PushNotificationsCard() {
+  const {
+    supported,
+    permission,
+    subscribed,
+    busy,
+    error,
+    enable,
+    disable,
+    serverConfigured,
+  } = usePushNotifications();
+
+  const enabled = subscribed && permission === "granted";
+
+  return (
+    <div className="rounded-3xl border border-border bg-card p-6">
+      <h2 className="flex items-center gap-2 font-display text-base font-semibold">
+        <BellRing className="size-4 text-sky-600" /> App alerts
+      </h2>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        Emergency contacts with verified EAlert accounts are alerted through the app — you don't
+        need SMS. Enable push to receive emergency alerts even when EAlert isn't open.
+      </p>
+
+      {!supported ? (
+        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-700">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          Push notifications aren't supported by this browser. Open EAlert in a modern browser or
+          on the mobile app.
+        </div>
+      ) : enabled ? (
+        <div className="mt-4 space-y-3">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+            <BellRing className="size-4" /> Push notifications are on
+          </p>
+          <Button
+            variant="outline"
+            className="w-full rounded-xl border-border bg-card text-muted-foreground hover:text-foreground"
+            onClick={disable}
+            disabled={busy}
+          >
+            <BellOff className="size-4" />
+            Turn off
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {permission === "denied" ? (
+            <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-700">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              Notifications are blocked in your browser settings. Allow them for this site, then
+              come back and enable app alerts.
+            </div>
+          ) : !serverConfigured ? (
+            <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-700">
+              <KeyRound className="mt-0.5 size-4 shrink-0" />
+              App alerts need VAPID keys on the server (see env.example). Until then, delivery
+              stays pending and nothing is claimed as sent.
+            </div>
+          ) : null}
+          <Button
+            className="w-full rounded-xl bg-sky-500 text-white hover:bg-sky-600"
+            onClick={enable}
+            disabled={busy || permission === "denied"}
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <BellRing className="size-4" />}
+            Enable app alerts
+          </Button>
+          {error && <p className="text-xs leading-relaxed text-rose-600">{error}</p>}
+        </div>
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   Loader2,
   MapPin,
   ShieldAlert,
+  Siren,
   UserCog,
   type LucideIcon,
 } from "lucide-react";
@@ -96,6 +97,7 @@ const typeMeta: Record<NotificationType, { icon: LucideIcon; className: string }
   account: { icon: UserCog, className: "bg-sky-400/15 text-sky-300" },
   location: { icon: MapPin, className: "bg-sky-100 text-sky-700" },
   system: { icon: Bell, className: "bg-muted text-foreground/80" },
+  emergency: { icon: Siren, className: "bg-rose-100 text-rose-600" },
 };
 
 export function NotificationTypeIcon({

@@ -18,7 +18,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/use-auth";
-import { greeting } from "@/lib/format";
+import { formatRelative, greeting } from "@/lib/format";
 
 function profileCompletion(profile: {
   fullName?: string;
@@ -49,6 +49,7 @@ export default function Dashboard() {
   const unread = useQuery(api.notifications.unreadCount);
   const profile = useQuery(api.profiles.getProfile);
   const latestLocation = useQuery(api.locations.latest);
+  const activeSession = useQuery(api.emergencySessions.myActiveSession);
 
   const completion = profile?.profile ? profileCompletion(profile.profile) : 0;
   const firstName = user?.name?.split(/\s+/)[0] ?? "there";
@@ -70,6 +71,36 @@ export default function Dashboard() {
         </h1>
         <p className="text-muted-foreground">Stay safe. We're here when you need us.</p>
       </motion.div>
+
+      {/* Active emergency session */}
+      {activeSession && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-rose-300 bg-gradient-to-r from-rose-100 to-white px-5 py-4"
+        >
+          <div className="flex items-center gap-3">
+            <span className="relative flex size-11 items-center justify-center">
+              <span className="animate-sos-ring absolute inset-0 rounded-full border-2 border-rose-400/60" />
+              <span className="flex size-9 items-center justify-center rounded-full bg-rose-500 text-white shadow-md shadow-rose-500/30">
+                <Siren className="size-5" />
+              </span>
+            </span>
+            <div>
+              <p className="font-display text-base font-bold text-rose-700">An emergency session is active</p>
+              <p className="text-xs text-muted-foreground">
+                Started {formatRelative(activeSession.startedAt)} — your contacts have been notified.
+              </p>
+            </div>
+          </div>
+          <Button asChild className="rounded-xl bg-rose-500 text-white hover:bg-rose-600">
+            <Link to={`/emergency/${activeSession._id}`}>
+              Open session <ArrowRight className="size-4" />
+            </Link>
+          </Button>
+        </motion.div>
+      )}
 
       {/* SOS */}
       <motion.section

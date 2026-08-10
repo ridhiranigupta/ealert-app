@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { requireAdmin, requireUser } from "./lib/session";
 import { logActivity } from "./services/activity";
 import { createNotification } from "./services/notifications";
@@ -8,7 +9,11 @@ import {
   computeAlertStatus,
   validateClientAlertId,
 } from "./lib/alertLogic";
+import { buildEmergencyPushPayload } from "./lib/emergencyLogic";
 import { dispatchEmergencyAlert } from "./services/notify";
+import type { RecipientOutcome } from "./services/notify";
+import { dispatchEmergencyPush } from "./services/push";
+import { createSessionForAlert } from "./emergencySessions";
 
 /** Basic rate limit: at most one real alert per user per 10 seconds. */
 const SOS_RATE_LIMIT_MS = 10_000;
@@ -187,23 +192,140 @@ export const triggerSOS = mutation({
       channel: "none",
     });
 
-    // ── Dispatch each recipient and record real outcomes ──
-    const dispatch = await dispatchEmergencyAlert(ctx, {
+    // ── One emergency session per SOS (app-to-app lifecycle) ──
+    const sessionId = await createSessionForAlert(ctx, { userId, alertId, now });
+
+    // ── Split recipients: verified EAlert contacts (push-first) vs legacy ──
+    // Verified contacts never receive traditional SMS — they get an app push.
+    const verifiedContacts = contacts.filter(
+      (c) => c.contactUserId && c.verified === true,
+    );
+    const legacyContacts = contacts.filter(
+      (c) => !(c.contactUserId && c.verified === true),
+    );
+
+    const legacyDispatch = legacyContacts.length > 0
+      ? await dispatchEmergencyAlert(ctx, {
+          userName: user.name ?? "an EAlert user",
+          locationLabel: label,
+          mapLink: link,
+          note: args.note?.trim()?.slice(0, 300),
+          timestamp: now,
+          recipients: legacyContacts.map((c) => ({
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+            channels: c.channels as ("sms" | "email" | "push")[] | undefined,
+          })),
+        })
+      : {
+          channel: "none" as const,
+          outcomes: [] as RecipientOutcome[],
+          attempted: 0,
+          queued: 0,
+          sent: 0,
+          delivered: 0,
+          failed: 0,
+        };
+
+    // ── App-to-app push to verified contacts' registered devices ──
+    const pushPayload = buildEmergencyPushPayload({
       userName: user.name ?? "an EAlert user",
-      locationLabel: label,
-      mapLink: link,
-      note: args.note?.trim()?.slice(0, 300),
-      timestamp: now,
-      recipients: contacts.map((c) => ({
-        name: c.name,
-        phone: c.phone,
-        email: c.email,
-        channels: c.channels as ("sms" | "email" | "push")[] | undefined,
-      })),
+      alertId: alertId as string,
+      sessionId: sessionId as string,
     });
 
+    const verifiedOutcomes = new Map<
+      Id<"emergencyContacts">,
+      { outcome: RecipientOutcome; pushStatus?: string; recipientUserId?: Id<"users"> }
+    >();
+
+    if (verifiedContacts.length > 0) {
+      const deviceGroups: {
+        contact: (typeof contacts)[number];
+        devices: { userId: Id<"users">; token: string; platform: string }[];
+      }[] = [];
+
+      for (const c of verifiedContacts) {
+        const devices = await ctx.db
+          .query("devices")
+          .withIndex("by_userId", (q) => q.eq("userId", c.contactUserId!))
+          .filter((q) => q.neq(q.field("revoked"), true))
+          .collect();
+        deviceGroups.push({
+          contact: c,
+          devices: devices.map((d) => ({
+            userId: c.contactUserId!,
+            token: d.token,
+            platform: d.platform,
+          })),
+        });
+      }
+
+      const allDevices = deviceGroups.flatMap((g) => g.devices);
+      const pushResult = await dispatchEmergencyPush({
+        devices: allDevices,
+        title: pushPayload.notification.title,
+        body: pushPayload.notification.body,
+        data: pushPayload.data,
+      });
+
+      // Revoke tokens the provider reports as gone.
+      for (const r of pushResult.results) {
+        if (r.unregistered) {
+          const dev = await ctx.db
+            .query("devices")
+            .withIndex("by_token", (q) => q.eq("token", r.device.token))
+            .first();
+          if (dev) await ctx.db.patch(dev._id, { revoked: true });
+        }
+      }
+
+      for (const group of deviceGroups) {
+        const groupTokens = new Set(group.devices.map((d) => d.token));
+        const accepted = pushResult.results.some(
+          (r) => groupTokens.has(r.device.token) && r.ok,
+        );
+        const errors = pushResult.results.filter(
+          (r) => groupTokens.has(r.device.token) && !r.ok,
+        );
+        verifiedOutcomes.set(group.contact._id, {
+          outcome: accepted
+            ? { status: "sent", channel: "push", provider: pushResult.provider ?? "push" }
+            : {
+                status: "queued",
+                channel: "push",
+                error: errors[0]?.error ?? "provider_not_configured",
+              },
+          pushStatus: accepted ? "sent" : "pending",
+          recipientUserId: group.contact.contactUserId,
+        });
+      }
+    }
+
+    // ── One outcome row per contact, aligned with `contacts` ──
+    const outcomes: RecipientOutcome[] = [];
+    const pushStatuses: (string | undefined)[] = [];
+    const recipientUserIds: (Id<"users"> | undefined)[] = [];
+    let legacyIndex = 0;
+    for (const c of contacts) {
+      if (c.contactUserId && c.verified === true) {
+        const o = verifiedOutcomes.get(c._id);
+        outcomes.push(o?.outcome ?? { status: "queued" as const, channel: "push", error: "no_push_outcome" });
+        pushStatuses.push(o?.pushStatus);
+        recipientUserIds.push(o?.recipientUserId);
+      } else {
+        outcomes.push(
+          legacyDispatch.outcomes[legacyIndex] ?? { status: "failed" as const, error: "no_outcome" },
+        );
+        pushStatuses.push(undefined);
+        recipientUserIds.push(undefined);
+        legacyIndex++;
+      }
+    }
+
     for (let i = 0; i < contacts.length; i++) {
-      const outcome = dispatch.outcomes[i] ?? { status: "failed" as const, error: "no_outcome" };
+      const outcome = outcomes[i];
       await ctx.db.insert("alertRecipients", {
         alertId,
         contactId: contacts[i]._id,
@@ -220,6 +342,10 @@ export const triggerSOS = mutation({
         deliveredAt: outcome.status === "delivered" ? now : undefined,
         lastAttemptAt: now,
         updatedAt: now,
+        recipientUserId: recipientUserIds[i],
+        pushStatus: pushStatuses[i] as "pending" | "sent" | "opened" | "active" | "delivered" | undefined,
+        openedAt: undefined,
+        respondedAt: undefined,
       });
     }
 
@@ -236,19 +362,25 @@ export const triggerSOS = mutation({
     }
 
     // ── Derive the final alert status from real outcomes ──
-    const finalStatus = computeAlertStatus(dispatch.outcomes.map((o) => o.status));
-    const failedOutcome = dispatch.outcomes.find((o) => o.error);
+    const finalStatus = computeAlertStatus(outcomes.map((o) => o.status));
+    const failedOutcome = outcomes.find((o) => o.error);
+    const pushSent = outcomes.filter((o) => o.channel === "push" && o.status === "sent").length;
     const failureReason =
       contacts.length === 0
         ? "no_emergency_contacts"
-        : dispatch.queued > 0 && dispatch.sent === 0
+        : legacyDispatch.queued > 0 && legacyDispatch.sent === 0 && pushSent === 0
           ? "provider_not_configured"
           : failedOutcome?.error;
+
+    const channel =
+      pushSent > 0
+        ? ("push" as const)
+        : (legacyDispatch.channel as "sms" | "email" | "push" | "none" | "demo");
 
     await ctx.db.patch(alertId, {
       status: finalStatus,
       updatedAt: Date.now(),
-      channel: dispatch.channel,
+      channel,
       failureReason,
     });
 
@@ -259,29 +391,34 @@ export const triggerSOS = mutation({
       result: finalStatus === "failed" ? "failed" : "success",
       metadata: JSON.stringify({
         alertId,
+        sessionId,
         recipients: contacts.length,
-        channel: dispatch.channel,
+        verified: verifiedContacts.length,
+        channel,
         status: finalStatus,
         locationShared: hasCoords,
       }),
     });
 
-    const deliveredCount = dispatch.sent + dispatch.delivered;
+    const deliveredCount = legacyDispatch.sent + legacyDispatch.delivered + pushSent;
+    const queuedCount = legacyDispatch.queued + outcomes.filter((o) => o.status === "queued").length;
     const title =
       contacts.length === 0
         ? "SOS alert recorded"
         : deliveredCount > 0
           ? `SOS alert sent to ${deliveredCount} contact${deliveredCount > 1 ? "s" : ""}`
-          : dispatch.queued > 0
-            ? "SOS alert recorded — provider not configured"
+          : queuedCount > 0
+            ? "SOS alert recorded — delivery pending"
             : "SOS alert could not be delivered";
     const body =
       contacts.length === 0
         ? "No active emergency contacts were notified. Add contacts so help can reach them."
         : deliveredCount > 0
-          ? `Delivered to ${deliveredCount} of ${contacts.length} contacts.`
-          : dispatch.queued > 0
-            ? "Your alert is recorded, but no SMS/email provider is configured, so nothing was sent externally. Add provider credentials to enable real delivery."
+          ? pushSent > 0
+            ? `Alerted ${deliveredCount} of ${contacts.length} contacts (${pushSent} through the EAlert app).`
+            : `Delivered to ${deliveredCount} of ${contacts.length} contacts.`
+          : queuedCount > 0
+            ? "Your alert is recorded. SMS/email delivery needs provider credentials, and app delivery needs verified contacts with push enabled."
             : "No contact could be reached. Check your contacts and try again.";
 
     await createNotification(ctx, {
@@ -289,18 +426,19 @@ export const triggerSOS = mutation({
       type: deliveredCount > 0 ? "delivery" : "sos",
       title,
       body,
-      linkTo: `/alerts/${alertId}`,
+      linkTo: `/emergency/${sessionId}`,
     });
 
     return {
       alertId,
+      sessionId,
       existing: false,
       recipientsCount: contacts.length,
       status: finalStatus,
-      channel: dispatch.channel,
+      channel,
       delivered: deliveredCount,
-      queued: dispatch.queued,
-      failed: dispatch.failed,
+      queued: queuedCount,
+      failed: legacyDispatch.failed + outcomes.filter((o) => o.status === "failed").length,
     };
   },
 });
