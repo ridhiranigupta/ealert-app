@@ -228,8 +228,8 @@ export default function Contacts() {
       )}
 
       {count > 0 && (
-        <div className="flex items-center gap-2 rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3 text-sm text-amber-200">
-          <AlertTriangle className="size-4 shrink-0" />
+        <div className="flex items-center gap-2 rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle className="size-4 shrink-0 text-amber-700" />
           {activeCount}/10 active contacts{activeCount !== count ? ` (${count - activeCount} paused)` : ""} — the higher the priority, the sooner they're notified. Paused contacts are kept but not alerted. Contacts with an EAlert account are alerted through the app (push) instead of SMS.
         </div>
       )}
