@@ -9,8 +9,10 @@ import {
   Search,
   Shield,
   ShieldCheck,
+  ShieldX,
   Siren,
   UserCheck,
+  UserCog,
   Users,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -31,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/hooks/use-auth";
 import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +53,7 @@ const actionOptions = [
   "account_disabled",
   "account_enabled",
   "account_deleted",
+  "role_changed",
 ];
 
 export default function Admin() {
@@ -138,10 +142,13 @@ function Overview() {
 /* ---------------- Users ---------------- */
 
 function UsersPanel() {
+  const { user: me } = useAuth();
   const [search, setSearch] = useState("");
   const users = useQuery(api.admin.listUsers, { search: search || undefined });
   const setUserStatus = useMutation(api.admin.setUserStatus);
+  const setUserRole = useMutation(api.admin.setUserRole);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyRoleId, setBusyRoleId] = useState<string | null>(null);
 
   const toggle = async (id: Id<"users">, current: string) => {
     setBusyId(id);
@@ -154,6 +161,23 @@ function UsersPanel() {
       setBusyId(null);
     }
   };
+
+  const changeRole = async (id: Id<"users">, currentRole: string) => {
+    const next = currentRole === "admin" ? "user" : "admin";
+    setBusyRoleId(id);
+    try {
+      await setUserRole({ id, role: next });
+      toast.success(
+        next === "admin" ? "User promoted to admin — role saved" : "Admin role removed — user demoted to member",
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not change role.");
+    } finally {
+      setBusyRoleId(null);
+    }
+  };
+
+  const isSelf = (id: string) => me?._id === id;
 
   return (
     <div className="space-y-5">
@@ -202,26 +226,50 @@ function UsersPanel() {
                       {u.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3.5 text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={busyId === u._id}
-                      onClick={() => toggle(u._id, u.status)}
-                      className={cn(
-                        "rounded-lg border-white/12 bg-white/[0.03]",
-                        u.status === "disabled" ? "text-emerald-300 hover:bg-emerald-400/10" : "text-rose-300 hover:bg-rose-400/10",
-                      )}
-                    >
-                      {busyId === u._id ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : u.status === "disabled" ? (
-                        <CheckCircle2 className="size-3.5" />
-                      ) : (
-                        <Ban className="size-3.5" />
-                      )}
-                      {u.status === "disabled" ? "Enable" : "Disable"}
-                    </Button>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busyRoleId === u._id || isSelf(u._id)}
+                        onClick={() => changeRole(u._id, u.role)}
+                        title={isSelf(u._id) ? "You can't change your own role" : u.role === "admin" ? "Remove admin access" : "Grant admin access"}
+                        className={cn(
+                          "rounded-lg border-white/12 bg-white/[0.03]",
+                          u.role === "admin"
+                            ? "text-violet-300 hover:bg-violet-400/10"
+                            : "text-muted-foreground hover:text-violet-200 hover:bg-violet-400/10",
+                        )}
+                      >
+                        {busyRoleId === u._id ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : u.role === "admin" ? (
+                          <ShieldX className="size-3.5" />
+                        ) : (
+                          <UserCog className="size-3.5" />
+                        )}
+                        {u.role === "admin" ? "Remove" : "Make admin"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busyId === u._id || isSelf(u._id)}
+                        onClick={() => toggle(u._id, u.status)}
+                        className={cn(
+                          "rounded-lg border-white/12 bg-white/[0.03]",
+                          u.status === "disabled" ? "text-emerald-300 hover:bg-emerald-400/10" : "text-rose-300 hover:bg-rose-400/10",
+                        )}
+                      >
+                        {busyId === u._id ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : u.status === "disabled" ? (
+                          <CheckCircle2 className="size-3.5" />
+                        ) : (
+                          <Ban className="size-3.5" />
+                        )}
+                        {u.status === "disabled" ? "Enable" : "Disable"}
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}

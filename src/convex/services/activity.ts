@@ -18,6 +18,7 @@ export type Action =
   | "account_disabled"
   | "account_enabled"
   | "account_deleted"
+  | "role_changed"
   | "profile_completed"
   | "alert_viewed"
   | "settings_updated";

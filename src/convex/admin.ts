@@ -216,26 +216,63 @@ export const listActivity = query({
 });
 
 /* ------------------------------------------------------------------ */
-/* Bootstrap                                                           */
+/* Role management                                                     */
 /* ------------------------------------------------------------------ */
 
 /**
- * Idempotent bootstrap: promotes the very first registered user to admin
- * so the admin dashboard can be exercised. No-op once any admin exists.
+ * Change another user's role. Admin-only, server-side authorization.
+ *
+ * Safeguards:
+ *  - Only an existing admin may call this (requireAdmin).
+ *  - An admin can never change their own role, so the console can't be
+ *    locked out (or escalated) by accident.
+ *  - The last remaining admin cannot be demoted, guaranteeing the
+ *    deployment always keeps at least one administrator.
+ *  - The role change is written to the activity log for audit.
  */
-export const ensureFirstAdmin = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const users = await ctx.db.query("users").collect();
-    const anyAdmin = users.some((u) => u.role === "admin");
-    if (anyAdmin) return false;
+export const setUserRole = mutation({
+  args: {
+    id: v.id("users"),
+    role: v.union(v.literal("user"), v.literal("admin")),
+  },
+  handler: async (ctx, args) => {
+    const { userId } = await requireAdmin(ctx);
 
-    const first = users
-      .filter((u) => !u.isAnonymous)
-      .sort((a, b) => a._creationTime - b._creationTime)[0];
-    if (!first) return false;
+    if (args.id === userId) {
+      throw new ConvexError("You can't change your own role.");
+    }
 
-    await ctx.db.patch(first._id, { role: "admin" });
+    const target = await ctx.db.get(args.id);
+    if (!target) throw new ConvexError("User not found.");
+    if (target.isAnonymous) {
+      throw new ConvexError("Guest accounts can't hold the admin role.");
+    }
+
+    const from = target.role ?? "user";
+    const to = args.role;
+
+    if (from === "admin" && to === "user") {
+      const admins = (await ctx.db.query("users").collect()).filter(
+        (u) => u.role === "admin",
+      );
+      if (admins.length <= 1) {
+        throw new ConvexError(
+          "You can't remove the last admin. Promote someone else first.",
+        );
+      }
+    }
+
+    await ctx.db.patch(args.id, { role: to });
+    await logActivity(ctx, {
+      userId,
+      action: "role_changed",
+      result: "success",
+      metadata: JSON.stringify({
+        targetUserId: args.id,
+        from,
+        to,
+      }),
+    });
     return true;
   },
 });

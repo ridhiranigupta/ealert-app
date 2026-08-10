@@ -110,7 +110,7 @@ export default function Onboarding() {
     try {
       await upsertProfile({ completeSetup: true });
       toast.success("You can finish your profile anytime from Settings");
-      navigate("/dashboard");
+      navigate("/dashboard", { replace: true });
     } finally {
       setSaving(false);
     }
@@ -297,10 +297,12 @@ export default function Onboarding() {
                 {contacts.filter((c) => c.name && c.phone).length === 1 ? " is" : "s are"} ready to be
                 alerted. Remember — hold the SOS button for 3 seconds when you need help.
               </p>
-              <Button asChild size="lg" className="mt-8 rounded-2xl bg-primary px-8 text-primary-foreground hover:bg-primary/90">
-                <Link to="/dashboard">
-                  Go to my dashboard <ArrowRight className="size-4" />
-                </Link>
+              <Button
+                size="lg"
+                className="mt-8 rounded-2xl bg-primary px-8 text-primary-foreground hover:bg-primary/90"
+                onClick={() => navigate("/dashboard", { replace: true })}
+              >
+                Go to my dashboard <ArrowRight className="size-4" />
               </Button>
             </motion.div>
           )}

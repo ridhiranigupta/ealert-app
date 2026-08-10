@@ -51,17 +51,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const ensureFirstAdmin = useMutation(api.admin.ensureFirstAdmin);
   const touchLastLogin = useMutation(api.users.touchLastLogin);
   const logEvent = useMutation(api.activityLogs.logEvent);
   const unread = useQuery(api.notifications.unreadCount);
   const isAdmin = useQuery(api.users.isAdmin);
   const profile = useQuery(api.profiles.getProfile);
-
-  // First registered user becomes admin (bootstrap). Idempotent server-side.
-  useEffect(() => {
-    ensureFirstAdmin().catch(() => {});
-  }, [ensureFirstAdmin]);
 
   // Audit login once per mount (guarded against StrictMode double-run).
   const loginLoggedRef = useRef(false);
