@@ -70,7 +70,7 @@ export default function Admin() {
       />
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="h-11 w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.03] p-1 sm:w-fit">
+        <TabsList className="h-11 w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-1 sm:w-fit">
           <TabTrigger value="overview" label="Overview" />
           <TabTrigger value="users" label="Users" />
           <TabTrigger value="alerts" label="Alerts" />
@@ -98,7 +98,7 @@ function TabTrigger({ value, label }: { value: string; label: string }) {
   return (
     <TabsTrigger
       value={value}
-      className="h-9 flex-1 gap-2 rounded-xl px-4 font-medium data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-200 sm:flex-none"
+      className="h-9 flex-1 gap-2 rounded-xl px-4 font-medium data-[state=active]:bg-violet-100 data-[state=active]:text-violet-700 sm:flex-none"
     >
       {label}
     </TabsTrigger>
@@ -120,11 +120,11 @@ function Overview() {
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         {[
-          { label: "Sent", value: stats.sentAlerts, tone: "text-cyan-300" },
+          { label: "Sent", value: stats.sentAlerts, tone: "text-sky-600" },
           { label: "Delivered", value: stats.deliveredAlerts, tone: "text-emerald-300" },
           { label: "Failed", value: stats.failedAlerts, tone: "text-rose-300" },
         ].map((s) => (
-          <div key={s.label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <div key={s.label} className="rounded-2xl border border-border bg-card p-5">
             <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">{s.label}</p>
             <p className={cn("mt-2 font-display text-3xl font-bold", s.tone)}>{s.value}</p>
           </div>
@@ -196,9 +196,9 @@ function UsersPanel() {
       ) : users.length === 0 ? (
         <EmptyState kind="empty" title="No users found" description="Try a different search, or wait for new sign-ups." />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-white/10">
+        <div className="overflow-hidden rounded-2xl border border-border">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-white/10 bg-white/[0.03] font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+            <thead className="border-b border-border bg-card font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">User</th>
                 <th className="hidden px-4 py-3 font-medium sm:table-cell">Role</th>
@@ -209,13 +209,13 @@ function UsersPanel() {
             </thead>
             <tbody className="divide-y divide-white/[0.06]">
               {users.map((u) => (
-                <tr key={u._id} className="transition-colors hover:bg-white/[0.03]">
+                <tr key={u._id} className="transition-colors hover:bg-violet-50/70">
                   <td className="px-4 py-3.5">
                     <p className="font-medium">{u.name}</p>
                     <p className="truncate font-mono text-xs text-muted-foreground">{u.email}</p>
                   </td>
                   <td className="hidden px-4 py-3.5 sm:table-cell">
-                    <Badge variant="outline" className={cn("font-mono text-[10px] uppercase", u.role === "admin" ? "border-violet-400/40 text-violet-300" : "border-white/10 text-muted-foreground")}>
+                    <Badge variant="outline" className={cn("font-mono text-[10px] uppercase", u.role === "admin" ? "border-violet-200 text-violet-700" : "border-border text-muted-foreground")}>
                       {u.role}
                     </Badge>
                   </td>
@@ -235,10 +235,10 @@ function UsersPanel() {
                         onClick={() => changeRole(u._id, u.role)}
                         title={isSelf(u._id) ? "You can't change your own role" : u.role === "admin" ? "Remove admin access" : "Grant admin access"}
                         className={cn(
-                          "rounded-lg border-white/12 bg-white/[0.03]",
+                          "rounded-lg border-border bg-card",
                           u.role === "admin"
-                            ? "text-violet-300 hover:bg-violet-400/10"
-                            : "text-muted-foreground hover:text-violet-200 hover:bg-violet-400/10",
+                            ? "text-violet-600 hover:bg-violet-100"
+                            : "text-muted-foreground hover:text-violet-700 hover:bg-violet-100",
                         )}
                       >
                         {busyRoleId === u._id ? (
@@ -256,7 +256,7 @@ function UsersPanel() {
                         disabled={busyId === u._id || isSelf(u._id)}
                         onClick={() => toggle(u._id, u.status)}
                         className={cn(
-                          "rounded-lg border-white/12 bg-white/[0.03]",
+                          "rounded-lg border-border bg-card",
                           u.status === "disabled" ? "text-emerald-300 hover:bg-emerald-400/10" : "text-rose-300 hover:bg-rose-400/10",
                         )}
                       >
@@ -294,9 +294,9 @@ function AlertsPanel() {
     return <EmptyState kind="alerts" title="No alerts yet" description="Emergency alerts across all users will appear here." />;
   }
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10">
+    <div className="overflow-hidden rounded-2xl border border-border">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-white/10 bg-white/[0.03] font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+        <thead className="border-b border-border bg-card font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
           <tr>
             <th className="px-4 py-3 font-medium">User</th>
             <th className="hidden px-4 py-3 font-medium sm:table-cell">Triggered</th>
@@ -307,7 +307,7 @@ function AlertsPanel() {
         </thead>
         <tbody className="divide-y divide-white/[0.06]">
           {alerts.map((a) => (
-            <tr key={a._id} className="transition-colors hover:bg-white/[0.03]">
+            <tr key={a._id} className="transition-colors hover:bg-violet-50/70">
               <td className="px-4 py-3.5">
                 <p className="font-medium">{a.userName}</p>
                 <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{a.type}</p>
@@ -387,9 +387,9 @@ function ActivityPanel() {
       ) : logs.length === 0 ? (
         <EmptyState kind="security" title="No matching activity" description="Adjust the filters to see more audit events." />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-white/10">
+        <div className="overflow-hidden rounded-2xl border border-border">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-white/10 bg-white/[0.03] font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+            <thead className="border-b border-border bg-card font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">User</th>
                 <th className="px-4 py-3 font-medium">Action</th>
@@ -400,7 +400,7 @@ function ActivityPanel() {
             </thead>
             <tbody className="divide-y divide-white/[0.06]">
               {logs.map((l) => (
-                <tr key={l._id} className="transition-colors hover:bg-white/[0.03]">
+                <tr key={l._id} className="transition-colors hover:bg-violet-50/70">
                   <td className="px-4 py-3 font-medium">{l.userName}</td>
                   <td className="px-4 py-3">
                     <span className="font-mono text-xs">{l.action.replace(/_/g, " ")}</span>
@@ -435,7 +435,7 @@ function SkeletonGrid() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-28 animate-pulse rounded-2xl border border-white/5 bg-white/[0.03]" />
+        <div key={i} className="h-28 animate-pulse rounded-2xl border border-border bg-card/70" />
       ))}
     </div>
   );
@@ -445,7 +445,7 @@ function SkeletonRows() {
   return (
     <div className="space-y-2.5">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="h-14 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
+        <div key={i} className="h-14 animate-pulse rounded-xl border border-border bg-card/70" />
       ))}
     </div>
   );

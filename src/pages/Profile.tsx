@@ -180,12 +180,12 @@ export default function Profile() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Photo card */}
         <div className="space-y-6 lg:col-span-1">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-center">
+          <div className="rounded-3xl border border-border bg-card p-6 text-center">
             <div className="flex justify-center">
               <ProfileAvatar name={form.fullName || user?.name} image={photoDisplay} className="size-24 text-2xl" ring index={0} />
             </div>
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} aria-label="Upload profile photo" />
-            <Button variant="outline" size="sm" className="mt-4 rounded-xl border-white/12 bg-white/[0.03] hover:bg-white/[0.08]" onClick={() => fileRef.current?.click()}>
+            <Button variant="outline" size="sm" className="mt-4 rounded-xl border-border bg-card hover:bg-violet-50" onClick={() => fileRef.current?.click()}>
               <Camera className="size-4" />
               Update photo
             </Button>
@@ -194,9 +194,9 @@ export default function Profile() {
             </p>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+          <div className="rounded-3xl border border-border bg-card p-6">
             <h2 className="flex items-center gap-2 font-display text-base font-semibold">
-              <Fingerprint className="size-4 text-violet-300" /> Security
+              <Fingerprint className="size-4 text-violet-600" /> Security
             </h2>
             <ul className="mt-4 space-y-3 text-sm">
               <li className="flex items-center justify-between">
@@ -207,15 +207,15 @@ export default function Profile() {
               </li>
               <li className="flex items-center justify-between">
                 <span className="text-muted-foreground">Magic code login</span>
-                <span className="font-mono text-xs text-cyan-300">enabled</span>
+                <span className="font-mono text-xs text-sky-600">enabled</span>
               </li>
               <li className="flex items-center justify-between">
                 <span className="text-muted-foreground">Two-factor</span>
                 <span className="font-mono text-xs text-muted-foreground">soon</span>
               </li>
             </ul>
-            <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-xs text-muted-foreground">
-              <KeyRound className="mt-0.5 size-4 shrink-0 text-amber-300" />
+            <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-border bg-card/70 px-3 py-2.5 text-xs text-muted-foreground">
+              <KeyRound className="mt-0.5 size-4 shrink-0 text-amber-600" />
               Forgot your password? Use "Sign in with a code" on the login page.
             </div>
           </div>
@@ -235,9 +235,9 @@ export default function Profile() {
 
         {/* Safety profile form */}
         <div className="space-y-6 lg:col-span-2">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-7">
+          <div className="rounded-3xl border border-border bg-card p-6 sm:p-7">
             <h2 className="flex items-center gap-2 font-display text-base font-semibold">
-              <UserRound className="size-4 text-violet-300" /> Personal details
+              <UserRound className="size-4 text-violet-600" /> Personal details
             </h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <Field label="Full name">
@@ -292,16 +292,16 @@ export default function Profile() {
                 <Textarea value={form.emergencyNote} onChange={(e) => set("emergencyNote")(e.target.value)} placeholder="What should your contacts know first?" className="min-h-20 rounded-xl" />
               </Field>
             </div>
-            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-violet-400/20 bg-violet-500/[0.06] px-3.5 py-3 text-xs leading-relaxed text-violet-200/90">
-              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-violet-300" />
+            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-violet-200 bg-violet-50 px-3.5 py-3 text-xs leading-relaxed text-violet-700/90">
+              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-violet-600" />
               Sensitive details like your address, family names and medical notes are stored privately and never shown in lists. Admins can only view them for moderation.
             </div>
           </div>
 
           {/* Recent activity */}
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-7">
+          <div className="rounded-3xl border border-border bg-card p-6 sm:p-7">
             <h2 className="flex items-center gap-2 font-display text-base font-semibold">
-              <History className="size-4 text-cyan-300" /> Recent activity
+              <History className="size-4 text-sky-600" /> Recent activity
             </h2>
             {activity && activity.length > 0 ? (
               <ul className="mt-4 divide-y divide-white/[0.06]">
@@ -325,7 +325,7 @@ export default function Profile() {
       </div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent className="rounded-3xl border-white/10 bg-card">
+        <AlertDialogContent className="rounded-3xl border-border bg-card">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display">Delete your account?</AlertDialogTitle>
             <AlertDialogDescription>

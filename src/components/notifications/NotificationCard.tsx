@@ -16,10 +16,10 @@ export function NotificationCard({
       type="button"
       onClick={() => onOpen(notification)}
       className={cn(
-        "flex w-full items-start gap-3.5 rounded-2xl border px-4 py-3.5 text-left transition-all hover:border-white/20 hover:bg-white/[0.05]",
+        "flex w-full items-start gap-3.5 rounded-2xl border px-4 py-3.5 text-left transition-all hover:border-violet-200 hover:bg-violet-50/60",
         unread
-          ? "border-violet-400/25 bg-violet-500/[0.06]"
-          : "border-white/[0.07] bg-white/[0.02]",
+          ? "border-violet-200 bg-violet-50"
+          : "border-border bg-card",
       )}
       aria-label={`${notification.title}. ${unread ? "Unread." : "Read."} ${notification.body}`}
     >

@@ -8,7 +8,9 @@ import {
   Loader2,
   LocateFixed,
   MapPin,
+  Phone,
   ShieldCheck,
+  WifiOff,
 } from "lucide-react";
 import {
   createContext,
@@ -21,11 +23,15 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { makeClientAlertId } from "@/convex/lib/alertLogic";
 import { AnimatedIllustration } from "@/lib/illustrations";
 import { cn } from "@/lib/utils";
 
 const HOLD_MS = 3000;
 const COUNTDOWN_S = 3;
+
+/** Regional emergency number (configurable per deployment, no auto-call). */
+const EMERGENCY_NUMBER = (import.meta.env.VITE_EMERGENCY_NUMBER as string | undefined) ?? "911";
 
 /* ------------------------------------------------------------------ */
 /* Geolocation helper (browser API, no keys required)                  */
@@ -49,7 +55,25 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
 /* Context                                                             */
 /* ------------------------------------------------------------------ */
 
-type Stage = "idle" | "confirm" | "locating" | "location-error" | "sending" | "success" | "error";
+type Stage =
+  | "idle"
+  | "confirm"
+  | "locating"
+  | "location-error"
+  | "sending"
+  | "success"
+  | "error"
+  | "offline";
+
+export interface SOSResult {
+  recipients: number;
+  channel?: string;
+  status?: string;
+  delivered?: number;
+  queued?: number;
+  failed?: number;
+  existing?: boolean;
+}
 
 interface SOSFlowValue {
   stage: Stage;
@@ -65,6 +89,21 @@ export function useSOSFlow() {
   return value;
 }
 
+function useOnlineStatus() {
+  const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online", up);
+      window.removeEventListener("offline", down);
+    };
+  }, []);
+  return online;
+}
+
 /* ------------------------------------------------------------------ */
 /* Provider                                                            */
 /* ------------------------------------------------------------------ */
@@ -74,27 +113,38 @@ export function SOSFlowProvider({ children }: { children: React.ReactNode }) {
   const triggerSOS = useMutation(api.alerts.triggerSOS);
   const recordCancelled = useMutation(api.alerts.recordCancelledSOS);
   const contacts = useQuery(api.emergencyContacts.list);
+  const online = useOnlineStatus();
 
   const locationRef = useRef<{ lat: number; lng: number; accuracy?: number } | null>(null);
-  const resultRef = useRef<{ recipients: number; channel?: string } | null>(null);
+  const resultRef = useRef<SOSResult | null>(null);
+  // One idempotency key per SOS action — reused on retry so the server
+  // never creates duplicate alerts for the same action.
+  const clientAlertIdRef = useRef<string | null>(null);
 
   const startSOS = useCallback(() => {
     locationRef.current = null;
     resultRef.current = null;
+    clientAlertIdRef.current = makeClientAlertId();
     setStage("confirm");
   }, []);
 
   const close = useCallback(() => {
     if (stage === "confirm" || stage === "locating" || stage === "location-error") {
-      // A cancelled SOS is recorded so history stays honest.
       recordCancelled().catch(() => {});
       toast("SOS cancelled", { description: "No alert was sent. Stay safe." });
     }
+    clientAlertIdRef.current = null;
     setStage("idle");
   }, [stage, recordCancelled]);
 
   const send = useCallback(
     async (withLocation: boolean) => {
+      // Honest offline handling: never claim an alert was sent offline.
+      if (!navigator.onLine) {
+        setStage("offline");
+        return;
+      }
+
       if (withLocation) {
         setStage("locating");
         try {
@@ -112,6 +162,7 @@ export function SOSFlowProvider({ children }: { children: React.ReactNode }) {
       setStage("sending");
       try {
         const result = await triggerSOS({
+          clientAlertId: clientAlertIdRef.current ?? undefined,
           lat: locationRef.current?.lat,
           lng: locationRef.current?.lng,
           accuracy: locationRef.current?.accuracy,
@@ -119,7 +170,15 @@ export function SOSFlowProvider({ children }: { children: React.ReactNode }) {
             ? `${locationRef.current.lat.toFixed(5)}, ${locationRef.current.lng.toFixed(5)}`
             : undefined,
         });
-        resultRef.current = { recipients: result.recipientsCount, channel: result.channel };
+        resultRef.current = {
+          recipients: result.recipientsCount,
+          channel: result.channel,
+          status: result.status,
+          delivered: result.delivered,
+          queued: result.queued,
+          failed: result.failed,
+          existing: result.existing,
+        };
         setStage("success");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not send the alert.");
@@ -139,10 +198,12 @@ export function SOSFlowProvider({ children }: { children: React.ReactNode }) {
       {children}
       <SOSModal
         stage={stage}
+        online={online}
         onClose={close}
         onSend={() => send(true)}
         onSendWithoutLocation={() => send(false)}
         contactCount={contacts?.length ?? 0}
+        primaryPhone={contacts?.find((c) => c.isPrimary)?.phone}
         result={resultRef.current}
       />
     </SOSFlowContext.Provider>
@@ -155,22 +216,25 @@ export function SOSFlowProvider({ children }: { children: React.ReactNode }) {
 
 function SOSModal({
   stage,
+  online,
   onClose,
   onSend,
   onSendWithoutLocation,
   contactCount,
+  primaryPhone,
   result,
 }: {
   stage: Stage;
+  online: boolean;
   onClose: () => void;
   onSend: () => void;
   onSendWithoutLocation: () => void;
   contactCount: number;
-  result: { recipients: number; channel?: string } | null;
+  primaryPhone?: string;
+  result: SOSResult | null;
 }) {
   const [countdown, setCountdown] = useState(COUNTDOWN_S);
 
-  // Countdown auto-sends when it reaches zero.
   useEffect(() => {
     if (stage !== "confirm") return;
     setCountdown(COUNTDOWN_S);
@@ -199,6 +263,9 @@ function SOSModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [stage, onClose]);
 
+  const delivered = result?.delivered ?? 0;
+  const queuedOnly = (result?.queued ?? 0) > 0 && delivered === 0;
+
   return (
     <AnimatePresence>
       {stage !== "idle" && (
@@ -206,7 +273,7 @@ function SOSModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-violet-950/45 p-4 backdrop-blur-md"
           role="dialog"
           aria-modal="true"
           aria-label="SOS emergency flow"
@@ -234,7 +301,7 @@ function SOSModal({
                     " You haven't added contacts yet — the alert will still be recorded."}
                 </p>
 
-                <div className="mx-auto mt-5 h-2 w-full max-w-[240px] overflow-hidden rounded-full bg-white/10">
+                <div className="mx-auto mt-5 h-2 w-full max-w-[240px] overflow-hidden rounded-full bg-rose-100">
                   <motion.div
                     key={countdown}
                     initial={{ width: `${((COUNTDOWN_S - 1) / COUNTDOWN_S) * 100}%` }}
@@ -249,7 +316,7 @@ function SOSModal({
                 <div className="mt-6 grid grid-cols-2 gap-3">
                   <Button
                     variant="outline"
-                    className="h-12 rounded-xl border-white/15 bg-white/5 hover:bg-white/10"
+                    className="h-12 rounded-xl border-rose-200 bg-white hover:bg-rose-50"
                     onClick={onClose}
                   >
                     <AlarmClockOff className="size-4" />
@@ -263,13 +330,20 @@ function SOSModal({
                     <ArrowRight className="size-4" />
                   </Button>
                 </div>
+
+                {!online && (
+                  <p className="mt-4 flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    <WifiOff className="size-3.5" />
+                    You're offline — the alert can't be transmitted until your connection returns.
+                  </p>
+                )}
               </>
             )}
 
             {stage === "locating" && (
               <>
                 <div className="relative mx-auto flex size-24 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10">
-                  <LocateFixed className="size-9 animate-pulse text-cyan-300" />
+                  <LocateFixed className="size-9 animate-pulse text-sky-600" />
                 </div>
                 <h2 className="mt-4 font-display text-xl font-bold">Getting your location…</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -282,7 +356,7 @@ function SOSModal({
             {stage === "location-error" && (
               <>
                 <div className="relative mx-auto flex size-24 items-center justify-center rounded-full border border-amber-400/30 bg-amber-400/10">
-                  <MapPin className="size-9 text-amber-300" />
+                  <MapPin className="size-9 text-amber-600" />
                 </div>
                 <h2 className="mt-4 font-display text-xl font-bold">Location unavailable</h2>
                 <p className="mx-auto mt-1 max-w-xs text-sm leading-relaxed text-muted-foreground">
@@ -290,7 +364,7 @@ function SOSModal({
                   You can still send the alert without coordinates.
                 </p>
                 <div className="mt-6 grid grid-cols-2 gap-3">
-                  <Button variant="outline" className="h-12 rounded-xl border-white/15" onClick={onClose}>
+                  <Button variant="outline" className="h-12 rounded-xl border-border" onClick={onClose}>
                     Cancel
                   </Button>
                   <Button
@@ -303,6 +377,46 @@ function SOSModal({
               </>
             )}
 
+            {stage === "offline" && (
+              <>
+                <div className="relative mx-auto flex size-24 items-center justify-center rounded-full border border-amber-400/30 bg-amber-400/10">
+                  <WifiOff className="size-9 text-amber-600" />
+                </div>
+                <h2 className="mt-4 font-display text-xl font-bold">No internet connection</h2>
+                <p className="mx-auto mt-1 max-w-xs text-sm leading-relaxed text-muted-foreground">
+                  Your alert could not be transmitted while you're offline. Reconnect and retry —
+                  or reach someone directly:
+                </p>
+                <div className="mt-5 grid gap-2.5">
+                  <a
+                    href={`tel:${EMERGENCY_NUMBER.replace(/\D/g, "")}`}
+                    className="flex h-12 items-center justify-center gap-2 rounded-xl bg-rose-500 font-semibold text-white transition-colors hover:bg-rose-600"
+                  >
+                    <Phone className="size-4" />
+                    Call {EMERGENCY_NUMBER} (emergency services)
+                  </a>
+                  {primaryPhone && (
+                    <a
+                      href={`tel:${primaryPhone.replace(/[^+\d]/g, "")}`}
+                      className="flex h-12 items-center justify-center gap-2 rounded-xl border border-border bg-card font-semibold text-foreground transition-colors hover:bg-violet-50"
+                    >
+                      <Phone className="size-4" />
+                      Call primary contact
+                    </a>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  className="mt-4 h-12 w-full rounded-xl border-border"
+                  onClick={onSend}
+                  disabled={!online}
+                >
+                  <RefreshCwSmall />
+                  {online ? "Retry now" : "Reconnect to retry"}
+                </Button>
+              </>
+            )}
+
             {stage === "sending" && (
               <>
                 <div className="relative mx-auto w-40">
@@ -312,40 +426,69 @@ function SOSModal({
                 <p className="mt-1 text-sm text-muted-foreground">
                   Notifying your emergency contacts now.
                 </p>
-                <Loader2 className="mx-auto mt-5 size-5 animate-spin text-rose-400" />
+                <Loader2 className="mx-auto mt-5 size-5 animate-spin text-rose-500" />
               </>
             )}
 
             {stage === "success" && (
               <>
                 <div className="relative mx-auto w-36">
-                  <AnimatedIllustration kind="success" className="w-36" />
+                  <AnimatedIllustration kind={queuedOnly ? "security" : "success"} className="w-36" />
                 </div>
-                <h2 className="mt-1 font-display text-2xl font-bold text-emerald-300">
-                  Alert sent
+                <h2 className="mt-1 font-display text-2xl font-bold">
+                  {queuedOnly ? "Alert recorded" : "Alert sent"}
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Your SOS alert was dispatched to{" "}
-                  <span className="font-semibold text-foreground">
-                    {result?.recipients ?? contactCount}
-                  </span>{" "}
-                  contact{result?.recipients === 1 ? "" : "s"}.
-                  {result?.recipients === 0 &&
-                    " Add emergency contacts so help can reach you faster next time."}
-                </p>
-                {result?.channel && result.channel !== "demo" && (
-                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 font-mono text-xs text-cyan-300">
+
+                {delivered > 0 ? (
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    Delivered to <span className="font-semibold text-foreground">{delivered}</span> of{" "}
+                    <span className="font-semibold text-foreground">{result?.recipients ?? 0}</span>{" "}
+                    contact{result?.recipients === 1 ? "" : "s"}.
+                    {(result?.failed ?? 0) > 0 && (
+                      <span className="mt-1 block text-rose-600">
+                        {result?.failed} could not be reached.
+                      </span>
+                    )}
+                  </p>
+                ) : queuedOnly ? (
+                  <>
+                    <p className="mt-2 text-sm leading-relaxed text-amber-700">
+                      No SMS or email provider is configured, so nothing was sent outside the app.
+                    </p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                      Your alert and recipients are recorded. Add SMS/email provider credentials to
+                      enable real delivery.
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-2 text-sm leading-relaxed text-rose-600">
+                    No contact could be reached. Check your contacts and try again.
+                  </p>
+                )}
+
+                {result?.channel && result.channel !== "none" && result.channel !== "demo" && (
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1 font-mono text-xs text-sky-700">
                     <CheckCircle2 className="size-3.5" />
                     channel: {result.channel}
                   </p>
                 )}
-                <Button
-                  className="mt-6 h-12 w-full rounded-xl bg-emerald-500 font-semibold text-white hover:bg-emerald-600"
-                  onClick={onClose}
-                >
-                  <ShieldCheck className="size-4" />
-                  I'm safe — got it
-                </Button>
+
+                <div className="mt-6 grid gap-2.5">
+                  <Button
+                    className="h-12 w-full rounded-xl bg-emerald-500 font-semibold text-white hover:bg-emerald-600"
+                    onClick={onClose}
+                  >
+                    <ShieldCheck className="size-4" />
+                    I'm safe — got it
+                  </Button>
+                  <a
+                    href={`tel:${EMERGENCY_NUMBER.replace(/\D/g, "")}`}
+                    className="flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-100"
+                  >
+                    <Phone className="size-4" />
+                    Call {EMERGENCY_NUMBER} if this is an emergency
+                  </a>
+                </div>
               </>
             )}
 
@@ -359,7 +502,7 @@ function SOSModal({
                   The alert could not be sent. Please try again or call a contact directly.
                 </p>
                 <div className="mt-6 grid grid-cols-2 gap-3">
-                  <Button variant="outline" className="h-12 rounded-xl border-white/15" onClick={onClose}>
+                  <Button variant="outline" className="h-12 rounded-xl border-border" onClick={onClose}>
                     Close
                   </Button>
                   <Button className="h-12 rounded-xl bg-rose-500 font-semibold text-white" onClick={onSend}>
@@ -368,10 +511,26 @@ function SOSModal({
                 </div>
               </>
             )}
+
+            <p className="mt-5 text-[10px] leading-relaxed text-muted-foreground/70">
+              EAlert helps you contact trusted people. In a life-threatening emergency, contact your
+              local emergency services.
+            </p>
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+function RefreshCwSmall() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12a9 9 0 0 1 15.36-6.36L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15.36 6.36L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
   );
 }
 
@@ -425,7 +584,6 @@ export function SOSButton({
 
   return (
     <div className={cn("relative inline-flex items-center justify-center", className)}>
-      {/* Pulse rings */}
       {size === "lg" && (
         <>
           <span className="animate-sos-ring absolute inset-0 rounded-full border-2 border-rose-500/50" />
@@ -458,7 +616,6 @@ export function SOSButton({
         onPointerLeave={stop}
         onContextMenu={(e) => e.preventDefault()}
       >
-        {/* Progress ring */}
         <svg className="pointer-events-none absolute inset-0 size-full -rotate-90" viewBox="0 0 100 100">
           <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="5" />
           <circle

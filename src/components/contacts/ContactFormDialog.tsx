@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
-import { ContactFormValues, emptyContactValues, relationships } from "@/lib/contact-form";
+import { channelOptions, ContactFormValues, emptyContactValues, relationships, type ContactChannel } from "@/lib/contact-form";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,6 +41,7 @@ export function ContactFormDialog({
   const updateContact = useMutation(api.emergencyContacts.update);
   const [values, setValues] = useState<ContactFormValues>(emptyContactValues);
   const [isPrimary, setIsPrimary] = useState(false);
+  const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -51,10 +54,13 @@ export function ContactFormDialog({
               relationship: editing.relationship,
               phone: editing.phone,
               email: editing.email ?? "",
+              active: editing.active !== false,
+              channels: (editing.channels ?? []) as ContactChannel[],
             }
           : emptyContactValues,
       );
       setIsPrimary(editing?.isPrimary ?? false);
+      setIsActive(editing?.active !== false);
       setError(null);
     }
   }, [open, editing]);
@@ -87,6 +93,8 @@ export function ContactFormDialog({
           phone,
           email: values.email || undefined,
           isPrimary,
+          active: isActive,
+          channels: values.channels,
         });
         toast.success(`${name} updated`);
       } else {
@@ -96,6 +104,8 @@ export function ContactFormDialog({
           phone,
           email: values.email || undefined,
           isPrimary,
+          active: isActive,
+          channels: values.channels,
         });
         toast.success(`${name} added to your emergency contacts`);
       }
@@ -111,7 +121,7 @@ export function ContactFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-3xl border-white/10 bg-card sm:max-w-lg">
+      <DialogContent className="max-w-md rounded-3xl border-border bg-card sm:max-w-lg">
         <DialogHeader className="text-left">
           <DialogTitle className="font-display text-xl">
             {editing ? "Edit emergency contact" : "Add emergency contact"}
@@ -182,7 +192,46 @@ export function ContactFormDialog({
               />
             </div>
 
-            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Notification channels</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {channelOptions.map((c) => {
+                  const active = values.channels.includes(c.value);
+                  return (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() =>
+                        setValues({
+                          ...values,
+                          channels: active
+                            ? values.channels.filter((x) => x !== c.value)
+                            : [...values.channels, c.value],
+                        })
+                      }
+                      className={cn(
+                        "flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition-colors",
+                        active
+                          ? "border-violet-300 bg-violet-100 text-foreground"
+                          : "border-border bg-card text-muted-foreground hover:border-violet-300",
+                      )}
+                      aria-pressed={active}
+                    >
+                      <span className="flex items-center gap-1.5 text-sm font-medium">
+                        {active && <Check className="size-3.5 text-violet-600" />}
+                        {c.label}
+                      </span>
+                      <span className="text-[10px]">{c.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Leave blank to use SMS (plus email when one is set).
+              </p>
+            </div>
+
+            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
               <span className="text-sm">
                 <span className="block font-medium">Primary emergency contact</span>
                 <span className="block text-xs text-muted-foreground">
@@ -190,6 +239,16 @@ export function ContactFormDialog({
                 </span>
               </span>
               <Switch checked={isPrimary} onCheckedChange={setIsPrimary} />
+            </label>
+
+            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+              <span className="text-sm">
+                <span className="block font-medium">Active</span>
+                <span className="block text-xs text-muted-foreground">
+                  Inactive contacts are kept but not alerted during SOS
+                </span>
+              </span>
+              <Switch checked={isActive} onCheckedChange={setIsActive} />
             </label>
 
             {error && (

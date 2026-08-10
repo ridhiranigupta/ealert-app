@@ -62,7 +62,7 @@ export default function Dashboard() {
         transition={{ duration: 0.5 }}
         className="flex flex-col gap-2"
       >
-        <p className="font-mono text-xs uppercase tracking-[0.25em] text-violet-300">
+        <p className="font-mono text-xs uppercase tracking-[0.25em] text-violet-600">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </p>
         <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
@@ -76,7 +76,7 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.05 }}
-        className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.03] px-6 py-10 text-center"
+        className="relative overflow-hidden rounded-[2rem] border border-border bg-card px-6 py-10 text-center"
       >
         <div className="pointer-events-none absolute -top-24 left-1/2 h-64 w-[520px] -translate-x-1/2 rounded-full bg-rose-500/15 blur-3xl" />
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-rose-300">
@@ -91,12 +91,12 @@ export default function Dashboard() {
           you confirm or cancel before anything is sent.
         </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 font-mono text-[11px] text-muted-foreground">
-            <HeartHandshake className="size-3.5 text-violet-300" />
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 font-mono text-[11px] text-muted-foreground">
+            <HeartHandshake className="size-3.5 text-violet-600" />
             {(contacts?.length ?? 0)}/10 contacts
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 font-mono text-[11px] text-muted-foreground">
-            <BellRing className="size-3.5 text-cyan-300" />
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 font-mono text-[11px] text-muted-foreground">
+            <BellRing className="size-3.5 text-sky-600" />
             {(unread ?? 0)} unread
           </span>
         </div>
@@ -112,17 +112,17 @@ export default function Dashboard() {
 
       {/* Completion + quick actions */}
       <section className="grid gap-5 lg:grid-cols-3">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 lg:col-span-1">
+        <div className="rounded-3xl border border-border bg-card p-6 lg:col-span-1">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-semibold">Safety readiness</h2>
-            <Siren className="size-5 text-violet-300" />
+            <Siren className="size-5 text-violet-600" />
           </div>
           <div className="mt-5">
             <div className="flex items-end justify-between">
               <p className="font-display text-4xl font-bold">{completion}%</p>
               <p className="text-xs text-muted-foreground">{completion === 100 ? "fully ready" : "almost there"}</p>
             </div>
-            <Progress value={completion} className="mt-3 h-2.5 rounded-full bg-white/10 [&>div]:bg-gradient-to-r [&>div]:from-violet-500 [&>div]:to-cyan-400" />
+            <Progress value={completion} className="mt-3 h-2.5 rounded-full bg-violet-100 [&>div]:bg-gradient-to-r [&>div]:from-violet-500 [&>div]:to-sky-400" />
           </div>
           <ul className="mt-5 space-y-2 text-sm">
             {[
@@ -131,14 +131,14 @@ export default function Dashboard() {
               { done: (contacts?.length ?? 0) > 0, label: "At least one contact" },
             ].map((item) => (
               <li key={item.label} className="flex items-center gap-2.5">
-                <span className={`flex size-5 items-center justify-center rounded-full text-[10px] font-bold ${item.done ? "bg-emerald-400/20 text-emerald-300" : "bg-white/10 text-muted-foreground"}`}>
+                <span className={`flex size-5 items-center justify-center rounded-full text-[10px] font-bold ${item.done ? "bg-emerald-100 text-emerald-700" : "bg-violet-100 text-muted-foreground"}`}>
                   {item.done ? "✓" : "•"}
                 </span>
                 <span className={item.done ? "text-muted-foreground" : "text-foreground/80"}>{item.label}</span>
               </li>
             ))}
           </ul>
-          <Button asChild variant="outline" className="mt-5 w-full rounded-xl border-white/12 bg-white/[0.03] hover:bg-white/[0.08]">
+          <Button asChild variant="outline" className="mt-5 w-full rounded-xl border-border bg-card hover:bg-violet-50">
             <Link to="/profile">
               {completion === 100 ? "Review profile" : "Complete profile"}
               <ArrowRight className="size-4" />
@@ -146,21 +146,21 @@ export default function Dashboard() {
           </Button>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 lg:col-span-2">
+        <div className="rounded-3xl border border-border bg-card p-6 lg:col-span-2">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-semibold">Quick actions</h2>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {[
-              { icon: HeartHandshake, label: "Manage contacts", to: "/contacts", tone: "text-violet-300" },
-              { icon: MapPin, label: "Share location", to: "/location", tone: "text-cyan-300" },
+              { icon: HeartHandshake, label: "Manage contacts", to: "/contacts", tone: "text-violet-600" },
+              { icon: MapPin, label: "Share location", to: "/location", tone: "text-sky-600" },
               { icon: ScrollText, label: "Alert history", to: "/alerts", tone: "text-rose-300" },
-              { icon: BellRing, label: "Notifications", to: "/notifications", tone: "text-amber-300" },
+              { icon: BellRing, label: "Notifications", to: "/notifications", tone: "text-amber-600" },
             ].map((a) => (
               <Link
                 key={a.label}
                 to={a.to}
-                className="group flex flex-col items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]"
+                className="group flex flex-col items-start gap-3 rounded-2xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:bg-violet-50/60"
               >
                 <a.icon className={`size-5 ${a.tone} transition-transform group-hover:scale-110`} />
                 <span className="text-sm font-medium">{a.label}</span>
@@ -168,7 +168,7 @@ export default function Dashboard() {
             ))}
             <Link
               to="/setup"
-              className="group flex flex-col items-start gap-3 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-4 transition-all hover:-translate-y-0.5 hover:border-white/25"
+              className="group flex flex-col items-start gap-3 rounded-2xl border border-dashed border-violet-200/70 bg-card/70 p-4 transition-all hover:-translate-y-0.5 hover:border-violet-300"
             >
               <Siren className="size-5 text-emerald-300 transition-transform group-hover:scale-110" />
               <span className="text-sm font-medium">Finish setup</span>
@@ -181,7 +181,7 @@ export default function Dashboard() {
       <section>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-lg font-semibold">Recent alerts</h2>
-          <Link to="/alerts" className="inline-flex items-center gap-1 text-sm font-medium text-violet-300 hover:text-violet-200">
+          <Link to="/alerts" className="inline-flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700">
             View all <ArrowRight className="size-4" />
           </Link>
         </div>

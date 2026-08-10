@@ -12,6 +12,7 @@ import {
   Shield,
   ShieldAlert,
   Siren,
+  WifiOff,
 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
@@ -29,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
+import { useOnlineStatus } from "@/hooks/use-online";
 import { getDeviceInfo } from "@/lib/device";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const online = useOnlineStatus();
   const touchLastLogin = useMutation(api.users.touchLastLogin);
   const logEvent = useMutation(api.activityLogs.logEvent);
   const unread = useQuery(api.notifications.unreadCount);
@@ -94,14 +97,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-background">
         {/* Ambient background glows */}
         <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-          <div className="absolute -top-40 left-1/4 h-96 w-96 rounded-full bg-violet-600/15 blur-3xl" />
-          <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
+          <div className="absolute -top-40 left-1/4 h-96 w-96 rounded-full bg-violet-300/40 blur-3xl" />
+          <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-sky-200/50 blur-3xl" />
           <div className="bg-grid absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
         </div>
 
         {/* Desktop sidebar */}
-        <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-white/[0.07] bg-sidebar/70 backdrop-blur-xl lg:flex">
-          <div className="flex h-16 items-center border-b border-white/[0.06] px-5">
+        <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar/80 backdrop-blur-xl lg:flex">
+          <div className="flex h-16 items-center border-b border-sidebar-border px-5">
             <Link to="/dashboard" aria-label="EAlert home">
               <Logo />
             </Link>
@@ -115,9 +118,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 end={item.end}
                 className={({ isActive }) =>
                   cn(
-                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:bg-white/[0.05] hover:text-foreground",
+                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:bg-violet-100/70 hover:text-foreground",
                     isActive &&
-                      "bg-violet-500/15 text-violet-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+                      "bg-violet-100 text-violet-700 shadow-none",
                   )
                 }
               >
@@ -132,11 +135,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
 
-          <div className="border-t border-white/[0.06] p-3">
+          <div className="border-t border-sidebar-border p-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-white/[0.05]"
+                  className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-violet-100/70"
                   aria-label="Account menu"
                 >
                   <ProfileAvatar name={user?.name} image={user?.image} ring index={0} />
@@ -169,7 +172,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={handleSignOut} className="cursor-pointer text-rose-400 focus:text-rose-400">
+                <DropdownMenuItem onSelect={handleSignOut} className="cursor-pointer text-rose-600 focus:text-rose-600">
                   <LogOut className="mr-2 size-4" />
                   Sign out
                 </DropdownMenuItem>
@@ -179,14 +182,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Mobile top bar */}
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-white/[0.07] bg-background/80 px-4 backdrop-blur-xl lg:hidden">
+        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur-xl lg:hidden">
           <Link to="/dashboard" aria-label="EAlert home">
             <Logo />
           </Link>
           <div className="flex items-center gap-2">
             <Link
               to="/notifications"
-              className="relative flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-muted-foreground transition-colors hover:text-foreground"
+              className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
               aria-label={`Notifications${(unread ?? 0) > 0 ? `, ${unread} unread` : ""}`}
             >
               <Bell className="size-5" />
@@ -204,13 +207,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Content */}
         <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:pb-12 lg:pl-72 lg:pr-8 lg:pt-8">
+          {!online && (
+            <div
+              role="status"
+              className="mb-5 flex items-center gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700"
+            >
+              <WifiOff className="size-4 shrink-0" />
+              <span>
+                You're offline — SOS alerts can't be transmitted until your connection returns.
+              </span>
+            </div>
+          )}
           {showSetupCta && (
             <Link
               to="/setup"
-              className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-violet-400/25 bg-gradient-to-r from-violet-500/15 to-cyan-400/10 px-4 py-3 text-sm transition-colors hover:border-violet-400/40"
+              className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-100 to-sky-100 px-4 py-3 text-sm transition-colors hover:border-violet-300"
             >
               <span className="flex items-center gap-2.5">
-                <Siren className="size-4 text-violet-300" />
+                <Siren className="size-4 text-violet-600" />
                 <span>
                   <span className="font-semibold">Finish setting up your safety profile</span>
                   <span className="ml-2 hidden text-muted-foreground sm:inline">
@@ -218,7 +232,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </span>
                 </span>
               </span>
-              <span className="shrink-0 font-semibold text-violet-300">Continue →</span>
+              <span className="shrink-0 font-semibold text-violet-600">Continue →</span>
             </Link>
           )}
           {children}
@@ -226,7 +240,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Mobile bottom nav */}
         <nav
-          className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-background/85 backdrop-blur-xl lg:hidden"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/90 backdrop-blur-xl lg:hidden"
           aria-label="Mobile"
         >
           <div className="mx-auto grid max-w-md grid-cols-5 items-center px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
@@ -254,7 +268,7 @@ function MobileLink({ item }: { item: NavItem }) {
       className={({ isActive }) =>
         cn(
           "flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-[10px] font-medium text-muted-foreground transition-colors",
-          isActive && "text-violet-300",
+          isActive && "text-violet-600",
         )
       }
     >

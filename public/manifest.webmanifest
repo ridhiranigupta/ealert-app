@@ -4,8 +4,8 @@
   "description": "Your safety, one tap away. Reach trusted contacts and share your live location when you need help.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d0b1c",
-  "theme_color": "#0d0b1c",
+  "background_color": "#f5f3fb",
+  "theme_color": "#7c6ff0",
   "icons": [
     {
       "src": "/logo.svg",

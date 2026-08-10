@@ -8,12 +8,21 @@ import {
   MapPin,
   RefreshCw,
   Share2,
+  Timer,
+  XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatTime } from "@/lib/format";
 
 interface Fix {
@@ -43,12 +52,35 @@ function getPosition(): Promise<Fix> {
   });
 }
 
+function formatRemaining(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
+}
+
 export default function LocationPage() {
   const saved = useQuery(api.locations.latest);
+  const session = useQuery(api.locationSessions.getActiveSession);
   const saveLocation = useMutation(api.locations.save);
+  const startSession = useMutation(api.locationSessions.startSession);
+  const updateSession = useMutation(api.locationSessions.updateSession);
+  const stopSession = useMutation(api.locationSessions.stopSession);
+
   const [fix, setFix] = useState<Fix | null>(null);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timeoutMin, setTimeoutMin] = useState("30");
+  const [sessionBusy, setSessionBusy] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  // Tick to keep the session countdown fresh.
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const remainingMs = session && !session.expired ? session.expiresAt - now : 0;
 
   const locate = async () => {
     setLocating(true);
@@ -86,6 +118,51 @@ export default function LocationPage() {
     }
   };
 
+  const start = async () => {
+    setSessionBusy(true);
+    try {
+      await startSession({ timeoutMinutes: Number(timeoutMin) });
+      toast.success(`Location sharing started for ${timeoutMin} minutes`);
+      await locate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not start sharing.");
+    } finally {
+      setSessionBusy(false);
+    }
+  };
+
+  const updateNow = async () => {
+    setSessionBusy(true);
+    try {
+      const f = await getPosition();
+      setFix(f);
+      await updateSession({ lat: f.lat, lng: f.lng, accuracy: f.accuracy });
+      toast.success("Location updated");
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message.includes("expired")
+          ? "Session expired — start a new one."
+          : err instanceof Error && err.message.includes("denied")
+            ? "Location permission was denied."
+            : "Couldn't update location right now.",
+      );
+    } finally {
+      setSessionBusy(false);
+    }
+  };
+
+  const stop = async () => {
+    setSessionBusy(true);
+    try {
+      await stopSession();
+      toast.success("Location sharing stopped");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not stop sharing.");
+    } finally {
+      setSessionBusy(false);
+    }
+  };
+
   const display = fix ?? (saved ? { lat: saved.lat, lng: saved.lng, accuracy: saved.accuracy, timestamp: saved.createdAt } : null);
   const mapLink = display ? `https://maps.google.com/?q=${display.lat.toFixed(6)},${display.lng.toFixed(6)}` : null;
 
@@ -93,7 +170,7 @@ export default function LocationPage() {
     <div className="space-y-8">
       <PageHeader
         title="Location"
-        subtitle="Your live coordinates, ready to include in any SOS alert. Map providers can be connected later — no API keys needed today."
+        subtitle="Your live coordinates, ready to include in any SOS alert. Location is only collected while you explicitly share it."
         actions={
           <Button className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90" onClick={locate} disabled={locating}>
             {locating ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
@@ -102,10 +179,82 @@ export default function LocationPage() {
         }
       />
 
+      {/* Live sharing session */}
+      <div
+        className={
+          session && !session.expired
+            ? "rounded-3xl border border-emerald-400/30 bg-emerald-400/[0.07] p-6"
+            : "rounded-3xl border border-border bg-card p-6"
+        }
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 font-display text-base font-semibold">
+              <Timer className={session && !session.expired ? "size-4 text-emerald-300" : "size-4 text-muted-foreground"} />
+              Live location sharing
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {session && !session.expired
+                ? `Active — started ${formatTime(session.startedAt)} · expires in ${formatRemaining(remainingMs)}`
+                : "Share your location for a limited, clearly explained session. Nothing is collected unless you start one."}
+            </p>
+          </div>
+
+          {session && !session.expired ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl border-emerald-400/30 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20"
+                onClick={updateNow}
+                disabled={sessionBusy}
+              >
+                {sessionBusy ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+                Update now
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl border-rose-400/30 bg-rose-400/10 text-rose-300 hover:bg-rose-400/20"
+                onClick={stop}
+                disabled={sessionBusy}
+              >
+                <XCircle className="size-3.5" />
+                Stop sharing
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Select value={timeoutMin} onValueChange={setTimeoutMin}>
+                <SelectTrigger className="h-10 w-36 rounded-xl" aria-label="Sharing duration">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15 minutes</SelectItem>
+                  <SelectItem value="30">30 minutes</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                className="h-10 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600"
+                onClick={start}
+                disabled={sessionBusy}
+              >
+                {sessionBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+                Start sharing
+              </Button>
+            </div>
+          )}
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          This is a web app: sharing only continues while this tab is open, and stops when the session
+          expires. A future native app can extend this with true background tracking.
+        </p>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Map placeholder */}
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] lg:col-span-3">
-          {/* Stylized map grid — replace with Mapbox / Google Maps embed when keys are configured. */}
+        <div className="relative overflow-hidden rounded-3xl border border-border bg-card lg:col-span-3">
           <div className="bg-grid absolute inset-0 opacity-60" />
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/[0.06] via-transparent to-violet-500/[0.08]" />
           {display ? (
@@ -113,7 +262,7 @@ export default function LocationPage() {
               <div className="relative">
                 <span className="animate-sos-ring absolute inset-0 rounded-full border-2 border-cyan-400/50" />
                 <span className="relative flex size-14 items-center justify-center rounded-full border border-cyan-300/40 bg-cyan-400/15 backdrop-blur">
-                  <MapPin className="size-6 text-cyan-300" />
+                  <MapPin className="size-6 text-sky-600" />
                 </span>
               </div>
               <p className="mt-6 font-mono text-sm text-foreground/90">
@@ -127,7 +276,7 @@ export default function LocationPage() {
                   href={mapLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-3.5 py-2 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-400/20"
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-100"
                 >
                   <ExternalLink className="size-4" />
                   Open in maps
@@ -151,7 +300,7 @@ export default function LocationPage() {
 
         {/* Details */}
         <div className="space-y-4 lg:col-span-2">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+          <div className="rounded-3xl border border-border bg-card p-6">
             <h2 className="font-display text-base font-semibold">Current fix</h2>
             <dl className="mt-4 space-y-3">
               {[
@@ -160,24 +309,23 @@ export default function LocationPage() {
                 ["Accuracy", display ? `±${Math.round(display.accuracy ?? 0)} m` : "—"],
                 ["Timestamp", display ? formatTime(display.timestamp) : "—"],
               ].map(([k, v]) => (
-                <div key={k} className="flex items-center justify-between gap-3 border-b border-white/[0.06] pb-2.5 last:border-0 last:pb-0">
+                <div key={k} className="flex items-center justify-between gap-3 border-b border-border pb-2.5 last:border-0 last:pb-0">
                   <dt className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{k}</dt>
                   <dd className="truncate font-mono text-sm">{v}</dd>
                 </div>
               ))}
             </dl>
-            <Button className="mt-5 w-full rounded-xl bg-cyan-500 text-white hover:bg-cyan-600" onClick={share}>
+            <Button className="mt-5 w-full rounded-xl bg-sky-500 text-white hover:bg-sky-600" onClick={share}>
               <Share2 className="size-4" />
               Share my location
             </Button>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-            <h2 className="font-display text-base font-semibold">How this works</h2>
+          <div className="rounded-3xl border border-border bg-card p-6">
+            <h2 className="font-display text-base font-semibold">Privacy</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              EAlert uses the browser's native geolocation API — no external service or API key is
-              required. When you trigger an SOS, your coordinates are attached to the alert
-              automatically.
+              EAlert uses the browser's native geolocation API. Your location is only collected when
+              you share it or trigger SOS — never in the background without a session.
             </p>
             <p className="mt-3 flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
               <RefreshCw className="size-3.5" />

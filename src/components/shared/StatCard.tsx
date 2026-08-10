@@ -2,11 +2,11 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tones = {
-  lavender: "from-violet-500/25 to-fuchsia-500/10 text-violet-300",
-  cyan: "from-cyan-400/25 to-sky-500/10 text-cyan-300",
+  lavender: "from-violet-200 to-fuchsia-100 text-violet-600",
+  cyan: "from-sky-200 to-sky-100 text-sky-600",
   coral: "from-rose-500/25 to-pink-500/10 text-rose-300",
   mint: "from-emerald-400/25 to-teal-500/10 text-emerald-300",
-  amber: "from-amber-400/25 to-orange-500/10 text-amber-300",
+  amber: "from-amber-200 to-orange-100 text-amber-600",
 } as const;
 
 export function StatCard({
@@ -27,7 +27,7 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]",
+        "group relative overflow-hidden rounded-2xl border border-border bg-card p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-200 hover:bg-violet-50/60",
         className,
       )}
     >

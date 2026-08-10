@@ -44,49 +44,105 @@ export const alertTypeValidator = v.union(
 );
 export type AlertType = Infer<typeof alertTypeValidator>;
 
+/**
+ * Alert lifecycle — every transition is computed server-side:
+ *   sending → queued | partially_delivered | delivered | failed
+ *   sending → cancelled (user aborted before transmission)
+ * `sent` is kept for backward compatibility with pre-upgrade rows.
+ */
 export const ALERT_STATUSES = {
+  SENDING: "sending",
+  QUEUED: "queued",
   SENT: "sent",
+  PARTIALLY_DELIVERED: "partially_delivered",
   DELIVERED: "delivered",
   CANCELLED: "cancelled",
   FAILED: "failed",
 } as const;
 
 export const alertStatusValidator = v.union(
+  v.literal(ALERT_STATUSES.SENDING),
+  v.literal(ALERT_STATUSES.QUEUED),
   v.literal(ALERT_STATUSES.SENT),
+  v.literal(ALERT_STATUSES.PARTIALLY_DELIVERED),
   v.literal(ALERT_STATUSES.DELIVERED),
   v.literal(ALERT_STATUSES.CANCELLED),
   v.literal(ALERT_STATUSES.FAILED),
 );
 export type AlertStatus = Infer<typeof alertStatusValidator>;
 
+/**
+ * Per-recipient delivery lifecycle. `queued` means "intent recorded, not
+ * yet delivered" — used when no provider is configured so we never claim
+ * delivery that did not happen. `retrying` means a previous attempt failed
+ * and a retry is scheduled/possible.
+ */
 export const RECIPIENT_STATUSES = {
+  QUEUED: "queued",
+  SENDING: "sending",
   SENT: "sent",
   DELIVERED: "delivered",
+  RETRYING: "retrying",
   FAILED: "failed",
 } as const;
 
 export const recipientStatusValidator = v.union(
+  v.literal(RECIPIENT_STATUSES.QUEUED),
+  v.literal(RECIPIENT_STATUSES.SENDING),
   v.literal(RECIPIENT_STATUSES.SENT),
   v.literal(RECIPIENT_STATUSES.DELIVERED),
+  v.literal(RECIPIENT_STATUSES.RETRYING),
   v.literal(RECIPIENT_STATUSES.FAILED),
 );
+export type RecipientStatus = Infer<typeof recipientStatusValidator>;
+
+/** Notification channels a contact can be reached on. */
+export const CONTACT_CHANNELS = {
+  SMS: "sms",
+  EMAIL: "email",
+  PUSH: "push",
+} as const;
+
+export const contactChannelValidator = v.union(
+  v.literal(CONTACT_CHANNELS.SMS),
+  v.literal(CONTACT_CHANNELS.EMAIL),
+  v.literal(CONTACT_CHANNELS.PUSH),
+);
+export type ContactChannel = Infer<typeof contactChannelValidator>;
 
 export const NOTIFICATION_TYPES = {
   SOS: "sos",
+  DELIVERY: "delivery",
   CONTACT: "contact",
   SECURITY: "security",
+  ACCOUNT: "account",
   LOCATION: "location",
   SYSTEM: "system",
 } as const;
 
 export const notificationTypeValidator = v.union(
   v.literal(NOTIFICATION_TYPES.SOS),
+  v.literal(NOTIFICATION_TYPES.DELIVERY),
   v.literal(NOTIFICATION_TYPES.CONTACT),
   v.literal(NOTIFICATION_TYPES.SECURITY),
+  v.literal(NOTIFICATION_TYPES.ACCOUNT),
   v.literal(NOTIFICATION_TYPES.LOCATION),
   v.literal(NOTIFICATION_TYPES.SYSTEM),
 );
 export type NotificationType = Infer<typeof notificationTypeValidator>;
+
+export const LOCATION_SESSION_STATUSES = {
+  ACTIVE: "active",
+  STOPPED: "stopped",
+  EXPIRED: "expired",
+} as const;
+
+export const locationSessionStatusValidator = v.union(
+  v.literal(LOCATION_SESSION_STATUSES.ACTIVE),
+  v.literal(LOCATION_SESSION_STATUSES.STOPPED),
+  v.literal(LOCATION_SESSION_STATUSES.EXPIRED),
+);
+export type LocationSessionStatus = Infer<typeof locationSessionStatusValidator>;
 
 /* ------------------------------------------------------------------ */
 /* Schema                                                              */
@@ -128,6 +184,7 @@ const schema = defineSchema(
       fatherName: v.optional(v.string()),
       motherName: v.optional(v.string()),
       dob: v.optional(v.string()),
+      gender: v.optional(v.string()),
       bloodGroup: v.optional(v.string()),
       medicalInfo: v.optional(v.string()),
       emergencyNote: v.optional(v.string()),
@@ -136,6 +193,8 @@ const schema = defineSchema(
     }).index("by_userId", ["userId"]),
 
     // Trusted people to contact during an emergency (max 10 per user).
+    // `active` contacts are the ones reached by SOS; `channels` is the
+    // contact's notification preference (sms / email / push).
     emergencyContacts: defineTable({
       userId: v.id("users"),
       name: v.string(),
@@ -144,6 +203,8 @@ const schema = defineSchema(
       email: v.optional(v.string()),
       priority: v.number(),
       isPrimary: v.boolean(),
+      active: v.optional(v.boolean()),
+      channels: v.optional(v.array(contactChannelValidator)),
       image: v.optional(v.string()),
     }).index("by_userId", ["userId"]),
 
@@ -152,8 +213,10 @@ const schema = defineSchema(
       userId: v.id("users"),
       type: alertTypeValidator,
       status: alertStatusValidator,
+      clientAlertId: v.optional(v.string()),
       message: v.optional(v.string()),
       triggeredAt: v.number(),
+      updatedAt: v.optional(v.number()),
       cancelledAt: v.optional(v.number()),
       lat: v.optional(v.number()),
       lng: v.optional(v.number()),
@@ -162,12 +225,16 @@ const schema = defineSchema(
       locationShared: v.boolean(),
       recipientsCount: v.number(),
       channel: v.optional(v.string()), // "demo" | "sms" | "email" | "push"
+      failureReason: v.optional(v.string()),
       note: v.optional(v.string()),
     })
       .index("by_userId", ["userId"])
-      .index("by_status", ["status"]),
+      .index("by_status", ["status"])
+      .index("by_clientAlertId", ["clientAlertId"]),
 
-    // Per-contact delivery record for an alert.
+    // Per-contact delivery record for an alert. Statuses and provider
+    // references reflect the real outcome of each attempt — nothing is
+    // marked "delivered" unless a provider confirms it.
     alertRecipients: defineTable({
       alertId: v.id("alerts"),
       contactId: v.optional(v.id("emergencyContacts")),
@@ -175,7 +242,15 @@ const schema = defineSchema(
       phone: v.string(),
       email: v.optional(v.string()),
       status: recipientStatusValidator,
+      channel: v.optional(v.string()),
+      provider: v.optional(v.string()),
+      providerMessageId: v.optional(v.string()),
+      error: v.optional(v.string()),
+      attempts: v.optional(v.number()),
       sentAt: v.number(),
+      deliveredAt: v.optional(v.number()),
+      lastAttemptAt: v.optional(v.number()),
+      updatedAt: v.optional(v.number()),
     }).index("by_alertId", ["alertId"]),
 
     // Location check-ins and SOS coords.
@@ -187,8 +262,32 @@ const schema = defineSchema(
       source: v.string(), // "gps" | "sos" | "manual"
       label: v.optional(v.string()),
       createdAt: v.number(),
+    }).index("by_userId", ["userId"]),
+
+    // Explicit, consent-based location sharing sessions. Browsers cannot
+    // guarantee background tracking — sessions only stay alive while the
+    // tab is open and expire after `timeoutMinutes` unless extended.
+    locationSessions: defineTable({
+      userId: v.id("users"),
+      startedAt: v.number(),
+      lastUpdatedAt: v.number(),
+      timeoutMinutes: v.number(),
+      status: locationSessionStatusValidator,
     })
-      .index("by_userId", ["userId"]),
+      .index("by_userId", ["userId"])
+      .index("by_userId_status", ["userId", "status"]),
+
+    // Browser push / device registrations (tokens are stored for future
+    // push delivery; never sent to the client of another user).
+    devices: defineTable({
+      userId: v.id("users"),
+      token: v.string(),
+      platform: v.string(), // "web" | "android" | "ios"
+      lastSeenAt: v.number(),
+      revoked: v.optional(v.boolean()),
+    })
+      .index("by_userId", ["userId"])
+      .index("by_token", ["token"]),
 
     // In-app notification center.
     notifications: defineTable({

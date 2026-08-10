@@ -130,7 +130,7 @@ export default function Onboarding() {
           type="button"
           onClick={handleSkipAll}
           disabled={saving}
-          className="text-sm font-medium text-violet-300 hover:text-violet-200"
+          className="text-sm font-medium text-violet-600 hover:text-violet-700"
         >
           Skip for now
         </button>
@@ -148,8 +148,8 @@ export default function Onboarding() {
                     i < step || step === 3
                       ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300"
                       : i === step
-                        ? "border-violet-400/50 bg-violet-500/15 text-violet-200"
-                        : "border-white/10 bg-white/[0.03] text-muted-foreground",
+                        ? "border-violet-300 bg-violet-100 text-violet-700"
+                        : "border-border bg-card text-muted-foreground",
                   )}
                 >
                   {i < step || step === 3 ? <Check className="size-4" /> : i + 1}
@@ -159,7 +159,7 @@ export default function Onboarding() {
                 </span>
               </div>
               {i < steps.length - 1 && (
-                <div className={cn("mx-2 mb-5 h-0.5 flex-1 rounded-full", i < step ? "bg-emerald-400/40" : "bg-white/10")} />
+                <div className={cn("mx-2 mb-5 h-0.5 flex-1 rounded-full", i < step ? "bg-emerald-400/40" : "bg-violet-100")} />
               )}
             </div>
           ))}
@@ -226,7 +226,7 @@ export default function Onboarding() {
                     <Input id="ob-medical" value={medicalInfo} onChange={(e) => setMedicalInfo(e.target.value)} placeholder="Allergies, conditions, notes…" className="h-11 rounded-xl" />
                   </div>
                 </div>
-                <p className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-xs text-muted-foreground">
+                <p className="mt-4 flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-xs text-muted-foreground">
                   <ShieldCheck className="size-4 shrink-0 text-emerald-300" />
                   This information stays private — only you can view it, and it's never shown in lists.
                 </p>
@@ -243,7 +243,7 @@ export default function Onboarding() {
               >
                 <div className="space-y-4">
                   {contacts.map((c, i) => (
-                    <div key={i} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:grid-cols-2">
+                    <div key={i} className="grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor={`oc-name-${i}`}>Name</Label>
                         <Input id={`oc-name-${i}`} value={c.name} onChange={(e) => updateContact(i, { name: e.target.value })} placeholder="Full name" className="h-10 rounded-xl" />
@@ -266,7 +266,7 @@ export default function Onboarding() {
                         <Input id={`oc-phone-${i}`} type="tel" value={c.phone} onChange={(e) => updateContact(i, { phone: e.target.value })} placeholder="+1 555 000 1234" className="h-10 rounded-xl" />
                       </div>
                       {i === 0 && (
-                        <p className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-violet-300 sm:col-span-2">
+                        <p className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-violet-600 sm:col-span-2">
                           <ShieldCheck className="size-3.5" /> primary contact
                         </p>
                       )}
@@ -276,7 +276,7 @@ export default function Onboarding() {
                     <button
                       type="button"
                       onClick={() => setContacts((l) => [...l, { ...emptyContactValues }])}
-                      className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 py-4 text-sm font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-violet-200/70 py-4 text-sm font-medium text-muted-foreground transition-colors hover:border-violet-300 hover:text-foreground"
                     >
                       + Add another contact
                     </button>
@@ -333,8 +333,8 @@ function StepShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-      <div className="flex size-11 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-300">
+    <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
+      <div className="flex size-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
         {icon}
       </div>
       <h2 className="mt-4 font-display text-2xl font-bold tracking-tight">{title}</h2>

@@ -1,10 +1,19 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { cleanInput, requireUser } from "./lib/session";
+import { isDuplicatePhone, validatePhone } from "./lib/alertLogic";
 import { logActivity } from "./services/activity";
 import { createNotification } from "./services/notifications";
+import { dispatchTestMessage } from "./services/notify";
 
 const MAX_CONTACTS = 10;
+const VALID_CHANNELS = ["sms", "email", "push"] as const;
+
+export const contactChannelValidator = v.union(
+  v.literal("sms"),
+  v.literal("email"),
+  v.literal("push"),
+);
 
 export const list = query({
   args: {},
@@ -26,24 +35,39 @@ export const add = mutation({
     email: v.optional(v.string()),
     isPrimary: v.optional(v.boolean()),
     image: v.optional(v.string()),
+    active: v.optional(v.boolean()),
+    channels: v.optional(v.array(contactChannelValidator)),
   },
   handler: async (ctx, args) => {
     const { userId } = await requireUser(ctx);
 
     const name = cleanInput(args.name, 80);
     const relationship = cleanInput(args.relationship, 40);
-    const phone = cleanInput(args.phone, 30);
     const email = cleanInput(args.email, 120);
-    if (!name || !relationship || !phone) {
-      throw new ConvexError("Name, relationship and phone number are required.");
+    if (!name || !relationship) {
+      throw new ConvexError("Name and relationship are required.");
     }
+
+    const phoneCheck = validatePhone(args.phone);
+    if (!phoneCheck.ok) {
+      throw new ConvexError(phoneCheck.reason ?? "Invalid phone number.");
+    }
+    const phone = phoneCheck.normalized;
 
     const existing = await ctx.db
       .query("emergencyContacts")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .collect();
+
     if (existing.length >= MAX_CONTACTS) {
-      throw new ConvexError(`You can add up to ${MAX_CONTACTS} emergency contacts.`);
+      throw new ConvexError(
+        `You can store up to ${MAX_CONTACTS} emergency contacts. Remove or reactivate one first.`,
+      );
+    }
+    const active = args.active !== false;
+
+    if (isDuplicatePhone(existing, phone)) {
+      throw new ConvexError("A contact with this phone number already exists.");
     }
 
     const priority = existing.length === 0 ? 1 : Math.max(...existing.map((c) => c.priority)) + 1;
@@ -55,6 +79,8 @@ export const add = mutation({
       }
     }
 
+    const channels = args.channels && args.channels.length > 0 ? [...new Set(args.channels)] : undefined;
+
     const id = await ctx.db.insert("emergencyContacts", {
       userId,
       name,
@@ -63,6 +89,8 @@ export const add = mutation({
       email: email ?? undefined,
       priority,
       isPrimary,
+      active,
+      channels,
       image: args.image ? cleanInput(args.image, 500) : undefined,
     });
 
@@ -93,6 +121,8 @@ export const update = mutation({
     email: v.optional(v.string()),
     image: v.optional(v.string()),
     isPrimary: v.optional(v.boolean()),
+    active: v.optional(v.boolean()),
+    channels: v.optional(v.array(contactChannelValidator)),
   },
   handler: async (ctx, args) => {
     const { userId } = await requireUser(ctx);
@@ -104,13 +134,46 @@ export const update = mutation({
     const patch: Record<string, unknown> = {};
     const name = cleanInput(args.name, 80);
     const relationship = cleanInput(args.relationship, 40);
-    const phone = cleanInput(args.phone, 30);
     const email = cleanInput(args.email, 120);
     if (name !== undefined) patch.name = name;
     if (relationship !== undefined) patch.relationship = relationship;
-    if (phone !== undefined) patch.phone = phone;
     if (email !== undefined) patch.email = email;
     if (args.image !== undefined) patch.image = cleanInput(args.image, 500);
+    if (args.channels !== undefined) {
+      patch.channels = args.channels.length > 0 ? [...new Set(args.channels)] : undefined;
+    }
+
+    // Phone: validate + prevent duplicates (ignoring the contact itself).
+    if (args.phone !== undefined) {
+      const phoneCheck = validatePhone(args.phone);
+      if (!phoneCheck.ok) {
+        throw new ConvexError(phoneCheck.reason ?? "Invalid phone number.");
+      }
+      const others = await ctx.db
+        .query("emergencyContacts")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .collect();
+      const rest = others.filter((c) => c._id !== args.id);
+      if (isDuplicatePhone(rest, phoneCheck.normalized)) {
+        throw new ConvexError("A contact with this phone number already exists.");
+      }
+      patch.phone = phoneCheck.normalized;
+    }
+
+    // Active toggle: enforce the 10-active-contact cap when enabling.
+    if (args.active === true && contact.active === false) {
+      const all = await ctx.db
+        .query("emergencyContacts")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .collect();
+      const activeCount = all.filter((c) => c._id !== args.id && c.active !== false).length;
+      if (activeCount >= MAX_CONTACTS) {
+        throw new ConvexError(`You can keep up to ${MAX_CONTACTS} active emergency contacts.`);
+      }
+      patch.active = true;
+    } else if (args.active === false) {
+      patch.active = false;
+    }
 
     if (args.isPrimary === true && !contact.isPrimary) {
       const others = await ctx.db
@@ -198,6 +261,49 @@ export const setPrimary = mutation({
       metadata: JSON.stringify({ name: contact.name }),
     });
     return true;
+  },
+});
+
+/**
+ * Send a test notification to one contact through their configured
+ * channels. Honest result: if no provider is configured, the test reports
+ * `provider_not_configured` instead of pretending it was delivered.
+ */
+export const sendTest = mutation({
+  args: { id: v.id("emergencyContacts") },
+  handler: async (ctx, args) => {
+    const { userId, user } = await requireUser(ctx);
+    const contact = await ctx.db.get(args.id);
+    if (!contact || contact.userId !== userId) {
+      throw new ConvexError("Contact not found.");
+    }
+
+    const outcome = await dispatchTestMessage(ctx, {
+      userName: user.name ?? "an EAlert user",
+      recipient: {
+        name: contact.name,
+        phone: contact.phone,
+        email: contact.email,
+        channels: (contact.channels ?? (contact.email ? ["sms", "email"] : ["sms"])) as (
+          | "sms"
+          | "email"
+          | "push"
+        )[],
+      },
+    });
+
+    await logActivity(ctx, {
+      userId,
+      action: "test_notification",
+      result: outcome.status === "failed" ? "failed" : "success",
+      metadata: JSON.stringify({
+        contactName: contact.name,
+        status: outcome.status,
+        error: outcome.error,
+      }),
+    });
+
+    return outcome;
   },
 });
 

@@ -19,6 +19,7 @@ const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
 const Contacts = lazy(() => import("./pages/Contacts.tsx"));
 const LocationPage = lazy(() => import("./pages/LocationPage.tsx"));
 const AlertsHistory = lazy(() => import("./pages/AlertsHistory.tsx"));
+const AlertDetail = lazy(() => import("./pages/AlertDetail.tsx"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage.tsx"));
 const Profile = lazy(() => import("./pages/Profile.tsx"));
 const Admin = lazy(() => import("./pages/Admin.tsx"));
@@ -149,6 +150,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/contacts" element={<Protected><Contacts /></Protected>} />
               <Route path="/location" element={<Protected><LocationPage /></Protected>} />
               <Route path="/alerts" element={<Protected><AlertsHistory /></Protected>} />
+              <Route path="/alerts/:id" element={<Protected><AlertDetail /></Protected>} />
               <Route path="/notifications" element={<Protected><NotificationsPage /></Protected>} />
               <Route path="/profile" element={<Protected><Profile /></Protected>} />
               <Route

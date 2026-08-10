@@ -41,11 +41,11 @@ export default function NotificationsPage() {
         subtitle="SOS alerts, contact updates, security events and location check-ins."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="rounded-xl border-white/12 bg-white/[0.03] hover:bg-white/[0.08]" onClick={handleMarkAll} disabled={(unread ?? 0) === 0}>
+            <Button variant="outline" className="rounded-xl border-border bg-card hover:bg-violet-50" onClick={handleMarkAll} disabled={(unread ?? 0) === 0}>
               <CheckCheck className="size-4" />
               Mark all read
             </Button>
-            <Button variant="outline" className="rounded-xl border-white/12 bg-white/[0.03] hover:bg-white/[0.08]" onClick={handleClear} disabled={(notifications?.length ?? 0) === 0}>
+            <Button variant="outline" className="rounded-xl border-border bg-card hover:bg-violet-50" onClick={handleClear} disabled={(notifications?.length ?? 0) === 0}>
               <Trash2 className="size-4" />
               Clear all
             </Button>
@@ -56,7 +56,7 @@ export default function NotificationsPage() {
       {notifications === undefined ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-2xl border border-white/5 bg-white/[0.03]" />
+            <div key={i} className="h-20 animate-pulse rounded-2xl border border-border bg-card/70" />
           ))}
         </div>
       ) : notifications.length === 0 ? (

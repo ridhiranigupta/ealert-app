@@ -27,7 +27,7 @@ export default function AlertsHistory() {
         subtitle="Every SOS event, with its status, location and the contacts it reached."
         actions={
           counts && (
-            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2">
+            <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2">
               <ScrollText className="size-4 text-muted-foreground" />
               <span className="font-mono text-sm">
                 {counts.total} total
@@ -42,7 +42,7 @@ export default function AlertsHistory() {
       {alerts === undefined ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-36 animate-pulse rounded-2xl border border-white/5 bg-white/[0.03]" />
+            <div key={i} className="h-36 animate-pulse rounded-2xl border border-border bg-card/70" />
           ))}
         </div>
       ) : alerts.length === 0 ? (

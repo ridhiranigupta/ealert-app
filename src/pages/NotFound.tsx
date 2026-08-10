@@ -8,8 +8,8 @@ export default function NotFound() {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-4">
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute -top-24 left-1/3 h-80 w-80 rounded-full bg-violet-600/15 blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
+        <div className="absolute -top-24 left-1/3 h-80 w-80 rounded-full bg-violet-300/40 blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 h-64 w-64 rounded-full bg-sky-200/50 blur-3xl" />
         <div className="bg-grid absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
       </div>
 
@@ -21,7 +21,7 @@ export default function NotFound() {
         <AnimatedIllustration kind="error" className="w-52" />
       </div>
 
-      <p className="mt-4 font-mono text-xs uppercase tracking-[0.3em] text-violet-300">Error 404</p>
+      <p className="mt-4 font-mono text-xs uppercase tracking-[0.3em] text-violet-600">Error 404</p>
       <h1 className="mt-3 text-center font-display text-3xl font-bold tracking-tight sm:text-4xl">
         This signal went dark
       </h1>
@@ -37,7 +37,7 @@ export default function NotFound() {
             Back home
           </Link>
         </Button>
-        <Button asChild variant="outline" className="rounded-xl border-white/12 bg-white/[0.03] hover:bg-white/[0.08]">
+        <Button asChild variant="outline" className="rounded-xl border-border bg-card hover:bg-violet-50">
           <Link to="/dashboard">
             My dashboard
             <ArrowRight className="size-4" />

@@ -503,11 +503,11 @@ export function IllustrationCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.02]",
+        "relative overflow-hidden rounded-[1.75rem] border border-violet-100 bg-gradient-to-b from-white to-white/70",
         className,
       )}
     >
-      <div className="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full bg-violet-500/25 blur-3xl" />
+      <div className="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full bg-violet-300/40 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -left-24 size-64 rounded-full bg-cyan-400/15 blur-3xl" />
       <AnimatedIllustration kind={kind} className={illustrationClassName} />
       {children}

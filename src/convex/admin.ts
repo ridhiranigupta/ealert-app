@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin } from "./lib/session";
 import { logActivity } from "./services/activity";
+import { providerStatus } from "./services/notify";
 
 /* ------------------------------------------------------------------ */
 /* Overview                                                            */
@@ -22,6 +23,15 @@ export const stats = query({
     const alertsToday = alerts.filter((a) => a._creationTime >= dayStart).length;
     const failed = alerts.filter((a) => a.status === "failed").length;
 
+    // Delivery success rate: delivered + partially delivered out of every
+    // alert that wasn't cancelled by the user.
+    const deliveredAlerts = alerts.filter(
+      (a) => a.status === "delivered" || a.status === "partially_delivered",
+    ).length;
+    const nonCancelled = alerts.filter((a) => a.status !== "cancelled").length;
+    const deliverySuccessRate =
+      nonCancelled > 0 ? Math.round((deliveredAlerts / nonCancelled) * 100) : 100;
+
     return {
       totalUsers: users.filter((u) => !u.isAnonymous).length,
       activeUsers,
@@ -29,9 +39,13 @@ export const stats = query({
       totalAlerts: alerts.length,
       alertsToday,
       sentAlerts: alerts.filter((a) => a.status === "sent").length,
-      deliveredAlerts: alerts.filter((a) => a.status === "delivered").length,
+      sendingAlerts: alerts.filter((a) => a.status === "sending").length,
+      queuedAlerts: alerts.filter((a) => a.status === "queued").length,
+      deliveredAlerts,
+      partialAlerts: alerts.filter((a) => a.status === "partially_delivered").length,
       cancelledAlerts: alerts.filter((a) => a.status === "cancelled").length,
       failedAlerts: failed,
+      deliverySuccessRate,
     };
   },
 });
@@ -140,6 +154,18 @@ export const setUserStatus = mutation({
       metadata: JSON.stringify({ targetUserId: args.id }),
     });
     return true;
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/* Integration status (safe booleans, no secrets)                      */
+/* ------------------------------------------------------------------ */
+
+export const integrationStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    return providerStatus();
   },
 });
 

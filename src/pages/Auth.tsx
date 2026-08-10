@@ -188,8 +188,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   return (
     <div className="relative min-h-screen bg-background">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -top-32 left-1/3 h-96 w-96 rounded-full bg-violet-600/20 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
+        <div className="absolute -top-32 left-1/3 h-96 w-96 rounded-full bg-violet-300/40 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-sky-200/50 blur-3xl" />
         <div className="bg-grid absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
       </div>
 
@@ -206,10 +206,10 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             </p>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-2.5">
-                <ShieldCheck className="size-4 text-violet-300" /> Hashed passwords & role-based access
+                <ShieldCheck className="size-4 text-violet-600" /> Hashed passwords & role-based access
               </li>
               <li className="flex items-center gap-2.5">
-                <Smartphone className="size-4 text-cyan-300" /> SOS with live location sharing
+                <Smartphone className="size-4 text-sky-600" /> SOS with live location sharing
               </li>
               <li className="flex items-center gap-2.5">
                 <Lock className="size-4 text-emerald-300" /> Private by default — your data stays yours
@@ -226,7 +226,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             </button>
           </div>
 
-          <Card className="glass-strong rounded-3xl border-white/12 shadow-2xl">
+          <Card className="glass-strong rounded-3xl shadow-2xl">
             {mode === "signin" && (
               <>
                 <CardHeader className="text-center">
@@ -255,7 +255,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                       <button
                         type="button"
                         onClick={() => switchMode("magic")}
-                        className="text-xs font-medium text-violet-300 hover:text-violet-200"
+                        className="text-xs font-medium text-violet-600 hover:text-violet-700"
                       >
                         Forgot password?
                       </button>
@@ -292,16 +292,16 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   </Button>
 
                   <div className="relative">
-                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/10" /></div>
+                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
                     <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">or</span></div>
                   </div>
 
                   <div className="grid gap-2.5">
-                    <Button variant="outline" className="h-11 rounded-xl border-white/12 bg-white/[0.03] hover:bg-white/[0.08]" onClick={handleGoogle}>
+                    <Button variant="outline" className="h-11 rounded-xl border-border bg-card hover:bg-violet-50" onClick={handleGoogle}>
                       <GoogleG />
                       Continue with Google
                     </Button>
-                    <Button variant="outline" className="h-11 rounded-xl border-white/12 bg-white/[0.03] hover:bg-white/[0.08]" onClick={handleGuest}>
+                    <Button variant="outline" className="h-11 rounded-xl border-border bg-card hover:bg-violet-50" onClick={handleGuest}>
                       <UserIcon className="size-4 text-muted-foreground" />
                       Continue as guest
                     </Button>
@@ -310,7 +310,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                 <CardFooter className="justify-center pb-6">
                   <p className="text-sm text-muted-foreground">
                     New to EAlert?{" "}
-                    <button type="button" onClick={() => switchMode("signup")} className="font-semibold text-violet-300 hover:text-violet-200">
+                    <button type="button" onClick={() => switchMode("signup")} className="font-semibold text-violet-600 hover:text-violet-700">
                       Create an account
                     </button>
                   </p>
@@ -359,7 +359,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                       {password.length > 0 && (
                         <div className="flex items-center gap-1.5">
                           {[1, 2, 3].map((i) => (
-                            <span key={i} className={cn("h-1 flex-1 rounded-full", i <= passwordStrength ? (passwordStrength === 1 ? "bg-rose-400" : passwordStrength === 2 ? "bg-amber-400" : "bg-emerald-400") : "bg-white/10")} />
+                            <span key={i} className={cn("h-1 flex-1 rounded-full", i <= passwordStrength ? (passwordStrength === 1 ? "bg-rose-400" : passwordStrength === 2 ? "bg-amber-400" : "bg-emerald-400") : "bg-violet-100")} />
                           ))}
                           <span className="ml-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                             {passwordStrength === 0 ? "" : passwordStrength === 1 ? "weak" : passwordStrength === 2 ? "okay" : "strong"}
@@ -388,7 +388,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                 <CardFooter className="justify-center pb-6">
                   <p className="text-sm text-muted-foreground">
                     Already have an account?{" "}
-                    <button type="button" onClick={() => switchMode("signin")} className="font-semibold text-violet-300 hover:text-violet-200">
+                    <button type="button" onClick={() => switchMode("signin")} className="font-semibold text-violet-600 hover:text-violet-700">
                       Sign in
                     </button>
                   </p>
@@ -423,7 +423,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   </CardContent>
                 </form>
                 <CardFooter className="justify-center pb-6">
-                  <button type="button" onClick={() => switchMode("signin")} className="text-sm font-medium text-violet-300 hover:text-violet-200">
+                  <button type="button" onClick={() => switchMode("signin")} className="text-sm font-medium text-violet-600 hover:text-violet-700">
                     Back to password sign-in
                   </button>
                 </CardFooter>
@@ -442,7 +442,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                       <InputOTP value={otp} onChange={setOtp} maxLength={6} disabled={isLoading}>
                         <InputOTPGroup>
                           {Array.from({ length: 6 }).map((_, i) => (
-                            <InputOTPSlot key={i} index={i} className="size-11 rounded-xl border-white/15" />
+                            <InputOTPSlot key={i} index={i} className="size-11 rounded-xl border-border" />
                           ))}
                         </InputOTPGroup>
                       </InputOTP>
@@ -458,14 +458,14 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                     </Button>
                     <p className="text-center text-sm text-muted-foreground">
                       Didn't get it?{" "}
-                      <button type="button" onClick={() => switchMode("magic")} className="font-medium text-violet-300 hover:text-violet-200">
+                      <button type="button" onClick={() => switchMode("magic")} className="font-medium text-violet-600 hover:text-violet-700">
                         Resend code
                       </button>
                     </p>
                   </CardContent>
                 </form>
                 <CardFooter className="justify-center pb-6">
-                  <button type="button" onClick={() => switchMode("signin")} className="text-sm font-medium text-violet-300 hover:text-violet-200">
+                  <button type="button" onClick={() => switchMode("signin")} className="text-sm font-medium text-violet-600 hover:text-violet-700">
                     Use a different email
                   </button>
                 </CardFooter>
