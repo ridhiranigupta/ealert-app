@@ -6,73 +6,41 @@ import { AppShell } from "@/components/layout/AppShell";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
-import React, { StrictMode, useEffect, lazy, Suspense, useState } from "react";
+import React, { StrictMode, useEffect, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { RotateCw } from "lucide-react";
 import "./index.css";
 
-/**
- * Retryable dynamic import for lazy routes.
+/*
+ * Route modules are imported EAGERLY (not via React.lazy).
  *
- * Lazy routes fetch their module over the network on first navigation. If the
- * dev server is momentarily unavailable (restart, deployment, network blip)
- * the dynamic import fails. Plain `React.lazy` permanently caches a rejected
- * import — the app would show a "Preview runtime error" forever, even after
- * the server recovers. This wrapper retries with capped exponential backoff
- * until the module loads, so routes self-heal automatically and transient
- * outages can never brick navigation.
+ * Why: lazy routes fetch their module over the network on first navigation.
+ * When the preview server is momentarily unavailable that fetch fails
+ * ("Failed to fetch dynamically imported module"), and React Router v7's
+ * transition-based navigation keeps the previous route's UI visible while the
+ * lazy module is pending — so /contacts could show the Dashboard screen.
+ * Eager imports make route switching fully synchronous: no per-route network
+ * fetch, no stale UI, no failed-import errors. The app is small enough that
+ * the single bundle cost is negligible, and reliability wins for a safety app.
  */
-function retryableImport<T>(
-  loader: () => Promise<{ default: T }>,
-  maxDelayMs = 8000,
-): Promise<{ default: T }> {
-  let delay = 400;
-  const attempt = (): Promise<{ default: T }> =>
-    loader().catch((err) => {
-      if (import.meta.env.DEV) {
-        console.warn("[route] dynamic import failed, retrying…", err);
-      }
-      const wait = delay;
-      delay = Math.min(delay * 2, maxDelayMs);
-      return new Promise((resolve) => setTimeout(resolve, wait)).then(attempt);
-    });
-  return attempt();
-}
+import Landing from "./pages/Landing.tsx";
+import AuthPage from "./pages/Auth.tsx";
+import Dashboard from "./pages/Dashboard.tsx";
+import Onboarding from "./pages/Onboarding.tsx";
+import Contacts from "./pages/Contacts.tsx";
+import LocationPage from "./pages/LocationPage.tsx";
+import AlertsHistory from "./pages/AlertsHistory.tsx";
+import AlertDetail from "./pages/AlertDetail.tsx";
+import EmergencySession from "./pages/EmergencySession.tsx";
+import NotificationsPage from "./pages/NotificationsPage.tsx";
+import Profile from "./pages/Profile.tsx";
+import Admin from "./pages/Admin.tsx";
+import NotFound from "./pages/NotFound.tsx";
 
-// Lazy load route components for better code splitting.
-// Every route uses retryableImport so a transient server/network outage can
-// never leave the app stuck on a permanent error screen.
-const Landing = lazy(() => retryableImport(() => import("./pages/Landing.tsx")));
-const AuthPage = lazy(() => retryableImport(() => import("./pages/Auth.tsx")));
-const Dashboard = lazy(() => retryableImport(() => import("./pages/Dashboard.tsx")));
-const Onboarding = lazy(() => retryableImport(() => import("./pages/Onboarding.tsx")));
-const Contacts = lazy(() => import("./pages/Contacts.tsx"));
-const LocationPage = lazy(() => retryableImport(() => import("./pages/LocationPage.tsx")));
-const AlertsHistory = lazy(() => retryableImport(() => import("./pages/AlertsHistory.tsx")));
-const AlertDetail = lazy(() => retryableImport(() => import("./pages/AlertDetail.tsx")));
-const EmergencySession = lazy(() => retryableImport(() => import("./pages/EmergencySession.tsx")));
-const NotificationsPage = lazy(() => retryableImport(() => import("./pages/NotificationsPage.tsx")));
-const Profile = lazy(() => retryableImport(() => import("./pages/Profile.tsx")));
-const Admin = lazy(() => retryableImport(() => import("./pages/Admin.tsx")));
-const NotFound = lazy(() => retryableImport(() => import("./pages/NotFound.tsx")));
-
-/** Show recovery UI when the Suspense fallback has been visible too long. */
-function useRecoveryTimer(thresholdMs: number): boolean {
-  const [stalled, setStalled] = useState(false);
-  useEffect(() => {
-    const id = setTimeout(() => setStalled(true), thresholdMs);
-    return () => clearTimeout(id);
-  }, [thresholdMs]);
-  return stalled;
-}
-
-// Simple loading fallback for route transitions
+// Simple loading fallback for route transitions (kept as a safety net; with
+// eager imports nothing suspends, so this is normally never shown).
 function RouteLoading() {
-  // If the server is down and we've been loading for > 15 s, show a
-  // recovery message so the user knows what's happening and can reload.
-  const stalled = useRecoveryTimer(15000);
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
@@ -80,27 +48,6 @@ function RouteLoading() {
         <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
           Loading…
         </div>
-        {stalled ? (
-          <div className="flex flex-col items-center gap-3">
-            <p className="max-w-xs text-center text-[11px] leading-4 text-muted-foreground/70">
-              The page is taking longer than expected — this can happen when the
-              preview server is restarting.
-            </p>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-1.5 text-xs font-semibold text-background transition hover:opacity-90 active:scale-95"
-            >
-              <RotateCw className="size-3" aria-hidden />
-              Reload page
-            </button>
-          </div>
-        ) : (
-          <p className="max-w-xs text-center text-[11px] leading-4 text-muted-foreground/70">
-            If this takes a moment, the connection may have been interrupted —
-            this page loads automatically once it recovers.
-          </p>
-        )}
       </div>
     </div>
   );
