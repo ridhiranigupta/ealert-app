@@ -6,40 +6,28 @@ import { AppShell } from "@/components/layout/AppShell";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
-import React, { StrictMode, useEffect, Suspense } from "react";
+import React, { StrictMode, useEffect, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { RotateCw } from "lucide-react";
 import "./index.css";
 
-/*
- * Route modules are imported EAGERLY (not via React.lazy).
- *
- * Why: lazy routes fetch their module over the network on first navigation.
- * When the preview server is momentarily unavailable that fetch fails
- * ("Failed to fetch dynamically imported module"), and React Router v7's
- * transition-based navigation keeps the previous route's UI visible while the
- * lazy module is pending — so /contacts could show the Dashboard screen.
- * Eager imports make route switching fully synchronous: no per-route network
- * fetch, no stale UI, no failed-import errors. The app is small enough that
- * the single bundle cost is negligible, and reliability wins for a safety app.
- */
-import Landing from "./pages/Landing.tsx";
-import AuthPage from "./pages/Auth.tsx";
-import Dashboard from "./pages/Dashboard.tsx";
-import Onboarding from "./pages/Onboarding.tsx";
-import Contacts from "./pages/Contacts.tsx";
-import LocationPage from "./pages/LocationPage.tsx";
-import AlertsHistory from "./pages/AlertsHistory.tsx";
-import AlertDetail from "./pages/AlertDetail.tsx";
-import EmergencySession from "./pages/EmergencySession.tsx";
-import NotificationsPage from "./pages/NotificationsPage.tsx";
-import Profile from "./pages/Profile.tsx";
-import Admin from "./pages/Admin.tsx";
-import NotFound from "./pages/NotFound.tsx";
+// Lazy load route components for better code splitting.
+const Landing = lazy(() => import("./pages/Landing.tsx"));
+const AuthPage = lazy(() => import("./pages/Auth.tsx"));
+const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
+const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
+const Contacts = lazy(() => import("./pages/Contacts.tsx"));
+const LocationPage = lazy(() => import("./pages/LocationPage.tsx"));
+const AlertsHistory = lazy(() => import("./pages/AlertsHistory.tsx"));
+const AlertDetail = lazy(() => import("./pages/AlertDetail.tsx"));
+const EmergencySession = lazy(() => import("./pages/EmergencySession.tsx"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage.tsx"));
+const Profile = lazy(() => import("./pages/Profile.tsx"));
+const Admin = lazy(() => import("./pages/Admin.tsx"));
+const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
-// Simple loading fallback for route transitions (kept as a safety net; with
-// eager imports nothing suspends, so this is normally never shown).
+// Simple loading fallback for route transitions
 function RouteLoading() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
