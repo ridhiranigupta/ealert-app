@@ -47,7 +47,7 @@ export function buildEmergencyPushPayload(opts: {
   return {
     notification: {
       title: "🚨 EAlert Emergency",
-      body: `${opts.userName} has activated an emergency alert. Tap to open the emergency session.`,
+      body: `${opts.userName} needs help right now. Tap to open the emergency session and see their live location and video.`,
     },
     data: {
       type: "emergency",

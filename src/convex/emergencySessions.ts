@@ -433,6 +433,24 @@ export const startVideo = mutation({
 
     await ctx.db.patch(session._id, { videoActive: true, updatedAt: now });
 
+    // Tell verified app recipients that live video is now available so they
+    // can join while the emergency is still active.
+    const appRecipients = await ctx.db
+      .query("alertRecipients")
+      .withIndex("by_alertId", (q) => q.eq("alertId", session.alertId))
+      .filter((q) => q.neq(q.field("recipientUserId"), undefined))
+      .collect();
+    for (const r of appRecipients) {
+      if (!r.recipientUserId) continue;
+      await createNotification(ctx, {
+        userId: r.recipientUserId,
+        type: "emergency",
+        title: "Live video is available",
+        body: `${user.name ?? "They"} started live video. Join to see what's happening.`,
+        linkTo: `/emergency/${session._id}`,
+      });
+    }
+
     const token = await livekitToken({
       apiKey: process.env.LIVEKIT_API_KEY!,
       apiSecret: process.env.LIVEKIT_API_SECRET!,

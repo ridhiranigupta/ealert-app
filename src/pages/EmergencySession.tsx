@@ -262,8 +262,6 @@ export default function EmergencySession() {
     }
   };
 
-  const videoRoomUrl = null;
-
   if (!id) {
     return (
       <div className="space-y-6">
