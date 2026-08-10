@@ -12,20 +12,77 @@ import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { RotateCw } from "lucide-react";
 import "./index.css";
 
+/**
+ * Lazy route loader with automatic stale-chunk recovery.
+ *
+ * Route modules are code-split into separate chunks that the browser fetches
+ * on first navigation. If a chunk is unavailable at that moment the dynamic
+ * import fails with "Failed to fetch dynamically imported module". Causes:
+ *   - dev/preview server briefly unavailable while (re)starting
+ *   - stale cached chunk URLs after a rebuild/deploy (old ?v= dep hashes or
+ *     old content hashes in production)
+ *
+ * Recovery — the standard production pattern:
+ *   1. Retry the import once immediately (covers transient blips).
+ *   2. If it still fails, reload the page once, guarded by sessionStorage so
+ *      it can never loop. The reload fetches a fresh index.html whose chunk
+ *      URLs are current, recovering from stale hashes / dead caches without
+ *      requiring the user to press Ctrl+R.
+ *   3. If it fails again after the reload, throw — the RootErrorBoundary
+ *      shows its recovery UI (a genuinely unavailable server is an
+ *      infrastructure problem no client code can fix).
+ *
+ * On success the guard is cleared, so any later chunk failure gets its own
+ * fresh recovery attempt.
+ */
+function recoverableLazy<T extends React.ComponentType>(
+  loader: () => Promise<{ default: T }>,
+) {
+  return lazy(() =>
+    loader().then(
+      (mod) => {
+        try {
+          sessionStorage.removeItem("ealert-chunk-reload");
+        } catch {
+          /* storage unavailable — ignore */
+        }
+        return mod;
+      },
+      (err: unknown) => {
+        console.warn("[route] chunk load failed, retrying…", err);
+        return loader().catch((secondErr: unknown) => {
+          console.warn("[route] chunk load failed again, reloading once…", secondErr);
+          try {
+            if (!sessionStorage.getItem("ealert-chunk-reload")) {
+              sessionStorage.setItem("ealert-chunk-reload", "1");
+              window.location.reload();
+            }
+          } catch {
+            /* storage/reload unavailable — fall through to the boundary */
+          }
+          throw err;
+        });
+      },
+    ),
+  );
+}
+
 // Lazy load route components for better code splitting.
-const Landing = lazy(() => import("./pages/Landing.tsx"));
-const AuthPage = lazy(() => import("./pages/Auth.tsx"));
-const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
-const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
-const Contacts = lazy(() => import("./pages/Contacts.tsx"));
-const LocationPage = lazy(() => import("./pages/LocationPage.tsx"));
-const AlertsHistory = lazy(() => import("./pages/AlertsHistory.tsx"));
-const AlertDetail = lazy(() => import("./pages/AlertDetail.tsx"));
-const EmergencySession = lazy(() => import("./pages/EmergencySession.tsx"));
-const NotificationsPage = lazy(() => import("./pages/NotificationsPage.tsx"));
-const Profile = lazy(() => import("./pages/Profile.tsx"));
-const Admin = lazy(() => import("./pages/Admin.tsx"));
-const NotFound = lazy(() => import("./pages/NotFound.tsx"));
+// recoverableLazy adds stale-chunk recovery so a transiently unavailable or
+// stale route module self-heals instead of permanently breaking navigation.
+const Landing = recoverableLazy(() => import("./pages/Landing.tsx"));
+const AuthPage = recoverableLazy(() => import("./pages/Auth.tsx"));
+const Dashboard = recoverableLazy(() => import("./pages/Dashboard.tsx"));
+const Onboarding = recoverableLazy(() => import("./pages/Onboarding.tsx"));
+const Contacts = recoverableLazy(() => import("./pages/Contacts.tsx"));
+const LocationPage = recoverableLazy(() => import("./pages/LocationPage.tsx"));
+const AlertsHistory = recoverableLazy(() => import("./pages/AlertsHistory.tsx"));
+const AlertDetail = recoverableLazy(() => import("./pages/AlertDetail.tsx"));
+const EmergencySession = recoverableLazy(() => import("./pages/EmergencySession.tsx"));
+const NotificationsPage = recoverableLazy(() => import("./pages/NotificationsPage.tsx"));
+const Profile = recoverableLazy(() => import("./pages/Profile.tsx"));
+const Admin = recoverableLazy(() => import("./pages/Admin.tsx"));
+const NotFound = recoverableLazy(() => import("./pages/NotFound.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
