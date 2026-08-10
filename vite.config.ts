@@ -92,9 +92,9 @@ export default defineConfig({
     // Bind to all interfaces so WebContainer's server-ready event fires.
     host: true,
     port: 5173,
-    // Keep HMR on, but disable full-screen error overlay
-    hmr: {
-      overlay: false,
-    },
+    // HMR stays disabled: Freebuff preview environments require `hmr: false`
+    // (an `hmr: { ... }` object breaks the managed dev server). File edits are
+    // picked up automatically by the platform's managed server restart.
+    hmr: false,
   },
 });
