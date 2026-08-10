@@ -9,22 +9,53 @@ import { ConvexReactClient } from "convex/react";
 import React, { StrictMode, useEffect, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
+import { RotateCw } from "lucide-react";
 import "./index.css";
 
-// Lazy load route components for better code splitting
-const Landing = lazy(() => import("./pages/Landing.tsx"));
-const AuthPage = lazy(() => import("./pages/Auth.tsx"));
-const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
-const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
-const Contacts = lazy(() => import("./pages/Contacts.tsx"));
-const LocationPage = lazy(() => import("./pages/LocationPage.tsx"));
-const AlertsHistory = lazy(() => import("./pages/AlertsHistory.tsx"));
-const AlertDetail = lazy(() => import("./pages/AlertDetail.tsx"));
-const EmergencySession = lazy(() => import("./pages/EmergencySession.tsx"));
-const NotificationsPage = lazy(() => import("./pages/NotificationsPage.tsx"));
-const Profile = lazy(() => import("./pages/Profile.tsx"));
-const Admin = lazy(() => import("./pages/Admin.tsx"));
-const NotFound = lazy(() => import("./pages/NotFound.tsx"));
+/**
+ * Retryable dynamic import for lazy routes.
+ *
+ * Lazy routes fetch their module over the network on first navigation. If the
+ * dev server is momentarily unavailable (restart, deployment, network blip)
+ * the dynamic import fails. Plain `React.lazy` permanently caches a rejected
+ * import — the app would show a "Preview runtime error" forever, even after
+ * the server recovers. This wrapper retries with capped exponential backoff
+ * until the module loads, so routes self-heal automatically and transient
+ * outages can never brick navigation.
+ */
+function retryableImport<T>(
+  loader: () => Promise<{ default: T }>,
+  maxDelayMs = 8000,
+): Promise<{ default: T }> {
+  let delay = 400;
+  const attempt = (): Promise<{ default: T }> =>
+    loader().catch((err) => {
+      if (import.meta.env.DEV) {
+        console.warn("[route] dynamic import failed, retrying…", err);
+      }
+      const wait = delay;
+      delay = Math.min(delay * 2, maxDelayMs);
+      return new Promise((resolve) => setTimeout(resolve, wait)).then(attempt);
+    });
+  return attempt();
+}
+
+// Lazy load route components for better code splitting.
+// Every route uses retryableImport so a transient server/network outage can
+// never leave the app stuck on a permanent error screen.
+const Landing = lazy(() => retryableImport(() => import("./pages/Landing.tsx")));
+const AuthPage = lazy(() => retryableImport(() => import("./pages/Auth.tsx")));
+const Dashboard = lazy(() => retryableImport(() => import("./pages/Dashboard.tsx")));
+const Onboarding = lazy(() => retryableImport(() => import("./pages/Onboarding.tsx")));
+const Contacts = lazy(() => retryableImport(() => import("./pages/Contacts.tsx")));
+const LocationPage = lazy(() => retryableImport(() => import("./pages/LocationPage.tsx")));
+const AlertsHistory = lazy(() => retryableImport(() => import("./pages/AlertsHistory.tsx")));
+const AlertDetail = lazy(() => retryableImport(() => import("./pages/AlertDetail.tsx")));
+const EmergencySession = lazy(() => retryableImport(() => import("./pages/EmergencySession.tsx")));
+const NotificationsPage = lazy(() => retryableImport(() => import("./pages/NotificationsPage.tsx")));
+const Profile = lazy(() => retryableImport(() => import("./pages/Profile.tsx")));
+const Admin = lazy(() => retryableImport(() => import("./pages/Admin.tsx")));
+const NotFound = lazy(() => retryableImport(() => import("./pages/NotFound.tsx")));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -35,6 +66,10 @@ function RouteLoading() {
         <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
           Loading…
         </div>
+        <p className="max-w-xs text-center text-[11px] leading-4 text-muted-foreground/70">
+          If this takes a moment, the connection may have been interrupted —
+          this page loads automatically once it recovers.
+        </p>
       </div>
     </div>
   );
@@ -88,6 +123,14 @@ class RootErrorBoundary extends React.Component<
                 {this.state.stack}
               </pre>
             )}
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-5 inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2 text-xs font-semibold text-background transition hover:opacity-90 active:scale-95"
+            >
+              <RotateCw className="size-3.5" aria-hidden />
+              Try again
+            </button>
           </div>
         </div>
       );
