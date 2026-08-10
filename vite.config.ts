@@ -77,14 +77,73 @@ export default defineConfig({
     // Only scan the app entry HTML; avoids crawling unrelated *.html files
     // if a legacy snapshot accidentally contains leaked package folders.
     entries: ['index.html'],
+    // Prebundle EVERY dependency the app imports at server startup.
+    //
+    // CRITICAL: if a package used by a route (e.g. @radix-ui/react-alert-dialog,
+    // which only the Contacts/Emergency/Profile routes import) is missing here,
+    // Vite discovers it at runtime on first navigation, re-runs the dep
+    // optimizer, regenerates the ?v= module hashes and forces a full reload.
+    // During that window module fetches 504/timing-out, producing
+    // "Failed to fetch dynamically imported module" errors and white screens.
     include: [
+      // React core + renderers
       'react',
       'react/jsx-runtime',
       'react-dom',
       'react-dom/client',
+      // Router, auth, backend client
       'react-router',
       '@convex-dev/auth/react',
+      'convex/react',
+      // Radix UI primitives (all shadcn/ui components use these)
+      '@radix-ui/react-accordion',
+      '@radix-ui/react-alert-dialog',
+      '@radix-ui/react-aspect-ratio',
+      '@radix-ui/react-avatar',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-collapsible',
+      '@radix-ui/react-context-menu',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-hover-card',
+      '@radix-ui/react-label',
+      '@radix-ui/react-menubar',
+      '@radix-ui/react-navigation-menu',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-progress',
+      '@radix-ui/react-radio-group',
+      '@radix-ui/react-scroll-area',
+      '@radix-ui/react-select',
+      '@radix-ui/react-separator',
+      '@radix-ui/react-slider',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-switch',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-toggle',
+      '@radix-ui/react-toggle-group',
+      '@radix-ui/react-tooltip',
+      // UI / logic libraries
+      'class-variance-authority',
+      'clsx',
+      'tailwind-merge',
+      'lucide-react',
+      'sonner',
+      'next-themes',
       'framer-motion',
+      'date-fns',
+      'input-otp',
+      'cmdk',
+      'vaul',
+      'embla-carousel-react',
+      'react-day-picker',
+      'react-hook-form',
+      '@hookform/resolvers',
+      'zod',
+      'recharts',
+      'react-resizable-panels',
+      // Platform integrations (Vly toolbar + telemetry)
+      '@vly-ai/integrations',
+      '@zumer/snapdom',
     ],
   },
   // Performance hints
