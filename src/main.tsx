@@ -6,7 +6,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
-import React, { StrictMode, useEffect, lazy, Suspense } from "react";
+import React, { StrictMode, useEffect, lazy, Suspense, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { RotateCw } from "lucide-react";
@@ -57,8 +57,22 @@ const Profile = lazy(() => retryableImport(() => import("./pages/Profile.tsx")))
 const Admin = lazy(() => retryableImport(() => import("./pages/Admin.tsx")));
 const NotFound = lazy(() => retryableImport(() => import("./pages/NotFound.tsx")));
 
+/** Show recovery UI when the Suspense fallback has been visible too long. */
+function useRecoveryTimer(thresholdMs: number): boolean {
+  const [stalled, setStalled] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setStalled(true), thresholdMs);
+    return () => clearTimeout(id);
+  }, [thresholdMs]);
+  return stalled;
+}
+
 // Simple loading fallback for route transitions
 function RouteLoading() {
+  // If the server is down and we've been loading for > 15 s, show a
+  // recovery message so the user knows what's happening and can reload.
+  const stalled = useRecoveryTimer(15000);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
@@ -66,10 +80,27 @@ function RouteLoading() {
         <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
           Loading…
         </div>
-        <p className="max-w-xs text-center text-[11px] leading-4 text-muted-foreground/70">
-          If this takes a moment, the connection may have been interrupted —
-          this page loads automatically once it recovers.
-        </p>
+        {stalled ? (
+          <div className="flex flex-col items-center gap-3">
+            <p className="max-w-xs text-center text-[11px] leading-4 text-muted-foreground/70">
+              The page is taking longer than expected — this can happen when the
+              preview server is restarting.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-1.5 text-xs font-semibold text-background transition hover:opacity-90 active:scale-95"
+            >
+              <RotateCw className="size-3" aria-hidden />
+              Reload page
+            </button>
+          </div>
+        ) : (
+          <p className="max-w-xs text-center text-[11px] leading-4 text-muted-foreground/70">
+            If this takes a moment, the connection may have been interrupted —
+            this page loads automatically once it recovers.
+          </p>
+        )}
       </div>
     </div>
   );
