@@ -47,7 +47,7 @@ const Landing = lazy(() => retryableImport(() => import("./pages/Landing.tsx")))
 const AuthPage = lazy(() => retryableImport(() => import("./pages/Auth.tsx")));
 const Dashboard = lazy(() => retryableImport(() => import("./pages/Dashboard.tsx")));
 const Onboarding = lazy(() => retryableImport(() => import("./pages/Onboarding.tsx")));
-const Contacts = lazy(() => retryableImport(() => import("./pages/Contacts.tsx")));
+const Contacts = lazy(() => import("./pages/Contacts.tsx"));
 const LocationPage = lazy(() => retryableImport(() => import("./pages/LocationPage.tsx")));
 const AlertsHistory = lazy(() => retryableImport(() => import("./pages/AlertsHistory.tsx")));
 const AlertDetail = lazy(() => retryableImport(() => import("./pages/AlertDetail.tsx")));
