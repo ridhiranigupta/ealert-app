@@ -106,8 +106,8 @@ export function EmergencyVideoRoom({
     const failure = MediaDeviceFailure.getFailure(err);
     if (failure === MediaDeviceFailure.PermissionDenied) {
       return source === Track.Source.Camera
-        ? "Camera permission is required for live video."
-        : "Microphone permission is required for live audio.";
+        ? "Camera permission denied. Please allow camera access to start live video."
+        : "Microphone permission denied. Please allow microphone access.";
     }
     if (failure === MediaDeviceFailure.NotFound) {
       return source === Track.Source.Camera
@@ -288,7 +288,7 @@ export function EmergencyVideoRoom({
         if (disposed) return;
         setPhase("error");
         setError(
-          "Unable to connect to emergency video. Please check your internet connection and try again.",
+          "Unable to connect to live emergency video. Please check your internet connection.",
         );
       }
     })();

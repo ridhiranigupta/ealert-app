@@ -222,7 +222,7 @@ export default function EmergencySession() {
     } catch (err) {
       const message =
         err instanceof Error && err.name === "NotAllowedError"
-          ? "Camera or microphone permission was denied."
+          ? "Camera or microphone permission was denied. Please allow camera and microphone access in your browser."
           : err instanceof Error
             ? err.message
             : "Could not start video.";

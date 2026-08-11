@@ -7,73 +7,11 @@ import { canAccessEmergencySession, canTransitionSession } from "./lib/emergency
 import { isVerifiedContactOf } from "./relationships";
 import { logActivity } from "./services/activity";
 import { createNotification } from "./services/notifications";
+import { liveKitConfig, livekitToken, videoProviderStatus } from "./lib/videoProvider";
 
 /** Safety net: sessions auto-expire after 4h even if never closed. */
 const SESSION_MAX_AGE_MS = 4 * 60 * 60 * 1000;
 const LOCATION_MIN_INTERVAL_MS = 2_000;
-
-/* ------------------------------------------------------------------ */
-/* Video provider configuration (server-side secrets only)             */
-/* ------------------------------------------------------------------ */
-
-export function videoProviderStatus(): { configured: boolean; provider?: string; url?: string } {
-  if (process.env.LIVEKIT_URL && process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET) {
-    return { configured: true, provider: "livekit", url: process.env.LIVEKIT_URL };
-  }
-  if (process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE) {
-    return { configured: true, provider: "agora", url: undefined };
-  }
-  return { configured: false };
-}
-
-/** Server-side LiveKit access token (HS256 JWT, Web Crypto). */
-async function livekitToken(opts: {
-  apiKey: string;
-  apiSecret: string;
-  room: string;
-  identity: string;
-  name?: string;
-  canPublish: boolean;
-  ttlSeconds: number;
-}): Promise<string> {
-  const enc = new TextEncoder();
-  const b64url = (bytes: Uint8Array) => {
-    let b = "";
-    for (let i = 0; i < bytes.length; i++) b += String.fromCharCode(bytes[i]);
-    return btoa(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  };
-  const header = b64url(enc.encode(JSON.stringify({ alg: "HS256", typ: "JWT" })));
-  const now = Math.floor(Date.now() / 1000);
-  const claims = b64url(
-    enc.encode(
-      JSON.stringify({
-        iss: opts.apiKey,
-        sub: opts.identity,
-        name: opts.name,
-        exp: now + opts.ttlSeconds,
-        nbf: now - 30,
-        video: {
-          room: opts.room,
-          roomJoin: true,
-          canPublish: opts.canPublish,
-          canSubscribe: true,
-          canPublishData: true,
-        },
-      }),
-    ),
-  );
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(opts.apiSecret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = new Uint8Array(
-    await crypto.subtle.sign("HMAC", key, enc.encode(`${header}.${claims}`)),
-  );
-  return `${header}.${claims}.${b64url(sig)}`;
-}
 
 /* ------------------------------------------------------------------ */
 /* Internal helpers                                                    */
@@ -408,6 +346,7 @@ export const startVideo = mutation({
         error: "Live video requires a provider. Configure LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET.",
       };
     }
+    const lk = liveKitConfig()!;
 
     const now = Date.now();
     const roomId = `emergency-${session._id}`;
@@ -452,8 +391,8 @@ export const startVideo = mutation({
     }
 
     const token = await livekitToken({
-      apiKey: process.env.LIVEKIT_API_KEY!,
-      apiSecret: process.env.LIVEKIT_API_SECRET!,
+      apiKey: lk.apiKey,
+      apiSecret: lk.apiSecret,
       room: roomId,
       identity: userId,
       name: user.name,
@@ -500,6 +439,7 @@ export const joinVideo = mutation({
     if (!config.configured) {
       return { configured: false, active: false, error: "Live video requires a provider. Configure LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET." };
     }
+    const lk = liveKitConfig()!;
     const video = await ctx.db
       .query("videoSessions")
       .withIndex("by_emergencySessionId", (q) => q.eq("emergencySessionId", session._id))
@@ -509,8 +449,8 @@ export const joinVideo = mutation({
       return { configured: true, active: false, error: "The live video session has ended." };
     }
     const token = await livekitToken({
-      apiKey: process.env.LIVEKIT_API_KEY!,
-      apiSecret: process.env.LIVEKIT_API_SECRET!,
+      apiKey: lk.apiKey,
+      apiSecret: lk.apiSecret,
       room: video.roomId,
       identity: userId,
       name: user.name,
