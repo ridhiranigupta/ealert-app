@@ -77,14 +77,14 @@ export default defineConfig({
     // Only scan the app entry HTML; avoids crawling unrelated *.html files
     // if a legacy snapshot accidentally contains leaked package folders.
     entries: ['index.html'],
-    // Prebundle EVERY dependency the app imports at server startup.
+    // Prebundle the app's core + shadcn/ui dependency surface at startup so
+    // route navigation never triggers a mid-session dependency re-optimization
+    // (which historically produced "Failed to fetch dynamically imported
+    // module" errors when the optimizer regenerated ?v= hashes mid-navigation).
     //
-    // CRITICAL: if a package used by a route (e.g. @radix-ui/react-alert-dialog,
-    // which only the Contacts/Emergency/Profile routes import) is missing here,
-    // Vite discovers it at runtime on first navigation, re-runs the dep
-    // optimizer, regenerates the ?v= module hashes and forces a full reload.
-    // During that window module fetches 504/timing-out, producing
-    // "Failed to fetch dynamically imported module" errors and white screens.
+    // Keep this list scoped to entry-graph + shared UI deps. Heavy packages
+    // used ONLY by lazy routes are intentionally omitted — see the note below
+    // the list — so dev-server cold starts stay fast enough for the preview.
     include: [
       // React core + renderers
       'react',
@@ -131,31 +131,21 @@ export default defineConfig({
       'next-themes',
       'framer-motion',
       'date-fns',
-      'input-otp',
-      'cmdk',
-      'vaul',
-      'embla-carousel-react',
-      'react-day-picker',
-      'react-hook-form',
-      '@hookform/resolvers',
-      'zod',
-      'recharts',
-      'react-resizable-panels',
-      // LiveKit real-time emergency video (WebRTC)
-      'livekit-client',
-      '@livekit/mutex',
-      '@livekit/protocol',
-      '@bufbuild/protobuf',
-      'events',
-      'loglevel',
-      'jose',
-      'typed-emitter',
-      'webrtc-adapter',
-      'sdp-transform',
       // Platform integrations (Vly toolbar + telemetry)
       '@vly-ai/integrations',
       '@zumer/snapdom',
     ],
+    // Heavy packages that are ONLY imported by lazy-loaded routes (LiveKit
+    // video on /emergency/:id, recharts on /admin, forms on /contacts and
+    // /profile, and the calendar/carousel/command/drawer/otp/resizable UI
+    // components) are deliberately NOT pre-bundled here. Pre-bundling them at
+    // startup made dev-server cold starts take minutes on Freebuff's 1-core
+    // preview sandbox, which caused "Initializing project… Step 2 of 4" stalls
+    // and "Preview unavailable" (dev server never became ready). Vite discovers
+    // them on first navigation and optimizes incrementally; the recoverableLazy
+    // route loader in src/main.tsx retries once and reloads once if a chunk
+    // fetch races the optimizer, so navigation self-heals without a full
+    // pre-bundle on every boot.
   },
   // Performance hints
   server: {
