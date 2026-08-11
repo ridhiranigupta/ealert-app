@@ -77,14 +77,24 @@ export default defineConfig({
     // Only scan the app entry HTML; avoids crawling unrelated *.html files
     // if a legacy snapshot accidentally contains leaked package folders.
     entries: ['index.html'],
-    // Prebundle the app's core + shadcn/ui dependency surface at startup so
-    // route navigation never triggers a mid-session dependency re-optimization
-    // (which historically produced "Failed to fetch dynamically imported
-    // module" errors when the optimizer regenerated ?v= hashes mid-navigation).
+    // Prebundle exactly the packages reachable from the static entry graph
+    // (index.html → src/main.tsx → AppShell/RequireAuth/RequireAdmin/
+    // VlyToolbar + their shared UI deps) so startup never triggers a
+    // mid-session dependency re-optimization for the initial screen (which
+    // historically produced "Failed to fetch dynamically imported module"
+    // errors when the optimizer regenerated ?v= hashes mid-navigation).
     //
-    // Keep this list scoped to entry-graph + shared UI deps. Heavy packages
-    // used ONLY by lazy routes are intentionally omitted — see the note below
-    // the list — so dev-server cold starts stay fast enough for the preview.
+    // Everything else — radix primitives used only by lazy routes (dialog,
+    // select, switch, tabs, tooltip, …), date-fns (only via src/lib/format.ts,
+    // which no static file imports), and the heavy packages below — is
+    // deliberately NOT pre-bundled here. Pre-bundling them at startup made
+    // dev-server cold starts take minutes on Freebuff's 1-core preview
+    // sandbox, which caused "Initializing project… Step 2 of 4" stalls and
+    // "Preview unavailable" (dev server never became ready). Vite discovers
+    // them on first navigation and optimizes incrementally; the recoverableLazy
+    // route loader in src/main.tsx retries once and reloads once if a chunk
+    // fetch races the optimizer, so navigation self-heals without a full
+    // pre-bundle on every boot.
     include: [
       // React core + renderers
       'react',
@@ -95,34 +105,12 @@ export default defineConfig({
       'react-router',
       '@convex-dev/auth/react',
       'convex/react',
-      // Radix UI primitives (all shadcn/ui components use these)
-      '@radix-ui/react-accordion',
-      '@radix-ui/react-alert-dialog',
-      '@radix-ui/react-aspect-ratio',
-      '@radix-ui/react-avatar',
-      '@radix-ui/react-checkbox',
-      '@radix-ui/react-collapsible',
-      '@radix-ui/react-context-menu',
-      '@radix-ui/react-dialog',
+      // Radix primitives used by the static entry graph (AppShell's
+      // dropdown-menu/button + ProfileAvatar's avatar; slot powers button)
       '@radix-ui/react-dropdown-menu',
-      '@radix-ui/react-hover-card',
-      '@radix-ui/react-label',
-      '@radix-ui/react-menubar',
-      '@radix-ui/react-navigation-menu',
-      '@radix-ui/react-popover',
-      '@radix-ui/react-progress',
-      '@radix-ui/react-radio-group',
-      '@radix-ui/react-scroll-area',
-      '@radix-ui/react-select',
-      '@radix-ui/react-separator',
-      '@radix-ui/react-slider',
       '@radix-ui/react-slot',
-      '@radix-ui/react-switch',
-      '@radix-ui/react-tabs',
-      '@radix-ui/react-toggle',
-      '@radix-ui/react-toggle-group',
-      '@radix-ui/react-tooltip',
-      // UI / logic libraries
+      '@radix-ui/react-avatar',
+      // UI / logic libraries used statically (sonner pulls next-themes)
       'class-variance-authority',
       'clsx',
       'tailwind-merge',
@@ -130,22 +118,10 @@ export default defineConfig({
       'sonner',
       'next-themes',
       'framer-motion',
-      'date-fns',
       // Platform integrations (Vly toolbar + telemetry)
       '@vly-ai/integrations',
       '@zumer/snapdom',
     ],
-    // Heavy packages that are ONLY imported by lazy-loaded routes (LiveKit
-    // video on /emergency/:id, recharts on /admin, forms on /contacts and
-    // /profile, and the calendar/carousel/command/drawer/otp/resizable UI
-    // components) are deliberately NOT pre-bundled here. Pre-bundling them at
-    // startup made dev-server cold starts take minutes on Freebuff's 1-core
-    // preview sandbox, which caused "Initializing project… Step 2 of 4" stalls
-    // and "Preview unavailable" (dev server never became ready). Vite discovers
-    // them on first navigation and optimizes incrementally; the recoverableLazy
-    // route loader in src/main.tsx retries once and reloads once if a chunk
-    // fetch races the optimizer, so navigation self-heals without a full
-    // pre-bundle on every boot.
   },
   // Performance hints
   server: {
