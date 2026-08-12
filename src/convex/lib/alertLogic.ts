@@ -65,6 +65,16 @@ export function normalizePhone(input: string): string {
   return digits.startsWith("+") ? `+${digits.slice(1).replace(/\D/g, "")}` : digits.replace(/\D/g, "");
 }
 
+/**
+ * Canonical form used for account matching: bare digits, no "+".
+ * `normalizePhone` keeps the "+" only when the caller typed one, which
+ * makes exact-match comparisons direction-dependent (+1555… vs 1555…).
+ * Dropping the "+" gives one deterministic form for both sides.
+ */
+export function canonicalPhone(input: string): string {
+  return input.replace(/\D/g, "");
+}
+
 export interface PhoneCheck {
   ok: boolean;
   normalized: string;

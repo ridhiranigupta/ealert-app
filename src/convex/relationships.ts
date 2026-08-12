@@ -3,7 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { requireUser } from "./lib/session";
-import { normalizePhone } from "./lib/alertLogic";
+import { canonicalPhone } from "./lib/alertLogic";
 import { logActivity } from "./services/activity";
 import { createNotification } from "./services/notifications";
 
@@ -12,32 +12,71 @@ import { createNotification } from "./services/notifications";
 /* ------------------------------------------------------------------ */
 
 /**
+ * When several accounts share one identifier (e.g. a duplicate sign-up),
+ * pick the one most likely to be the person's active account: most recent
+ * login first, then most recently created. Old abandoned accounts win only
+ * if they are the only match.
+ */
+function pickBestAccount<T extends { lastLoginAt?: number; _creationTime: number }>(
+  candidates: T[],
+): T | null {
+  if (candidates.length === 0) return null;
+  return [...candidates].sort((a, b) => {
+    const aLogin = a.lastLoginAt ?? -Infinity;
+    const bLogin = b.lastLoginAt ?? -Infinity;
+    if (aLogin !== bLogin) return bLogin - aLogin;
+    return b._creationTime - a._creationTime;
+  })[0];
+}
+
+/**
  * Find a registered EAlert account by normalized phone or email.
  * Returns only what the caller already supplied (id) plus the public name
  * used for the invitation — never private profile data.
+ *
+ * Phone matching compares bare digits on both sides so formatting (a
+ * leading "+", spaces, dashes, country-code style) can never hide a
+ * registered account in one direction but not the other. When several
+ * accounts share an identifier, the active one is preferred (see
+ * pickBestAccount) so invites land on the account the person actually
+ * uses, not an abandoned duplicate.
  */
 export async function findRegisteredUser(
   ctx: { db: QueryCtx["db"] },
   opts: { phone?: string; email?: string },
 ): Promise<{ _id: Id<"users">; name?: string } | null> {
   if (opts.phone) {
-    const phone = normalizePhone(opts.phone);
+    const phone = canonicalPhone(opts.phone);
     if (phone) {
-      const user = await ctx.db
+      // Fast path: exact match against the stored canonical form.
+      let candidates = await ctx.db
         .query("users")
         .filter((q) => q.eq(q.field("phone"), phone))
-        .first();
-      if (user) return { _id: user._id, name: user.name };
+        .collect();
+
+      // Fallback: legacy rows may hold "+…", spaces or dashes (account
+      // phones were stored raw before write-side normalization). Compare
+      // digits only so a formatting difference can't hide the account.
+      if (candidates.length === 0) {
+        const all = await ctx.db.query("users").collect();
+        candidates = all.filter(
+          (u) => u.phone !== undefined && u.phone.replace(/\D/g, "") === phone,
+        );
+      }
+
+      const best = pickBestAccount(candidates);
+      if (best) return { _id: best._id, name: best.name };
     }
   }
   if (opts.email) {
     const email = opts.email.trim().toLowerCase();
     if (email) {
-      const user = await ctx.db
+      const candidates = await ctx.db
         .query("users")
         .withIndex("email", (q) => q.eq("email", email))
-        .first();
-      if (user) return { _id: user._id, name: user.name };
+        .collect();
+      const best = pickBestAccount(candidates);
+      if (best) return { _id: best._id, name: best.name };
     }
   }
   return null;

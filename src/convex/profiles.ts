@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { cleanInput, requireUser } from "./lib/session";
+import { canonicalPhone } from "./lib/alertLogic";
 import { logActivity } from "./services/activity";
 import { createNotification } from "./services/notifications";
 
@@ -85,6 +86,13 @@ export const upsertProfile = mutation({
       await ctx.db.patch(existing._id, fields);
     } else {
       await ctx.db.insert("profiles", { userId, ...fields });
+    }
+
+    // Keep the account-level phone in sync (canonical form). Onboarding
+    // only writes the safety profile — without this, a user who never
+    // visits Profile settings would be invisible to invite matching.
+    if (fields.phone) {
+      await ctx.db.patch(userId, { phone: canonicalPhone(fields.phone) });
     }
 
     if (args.completeSetup) {

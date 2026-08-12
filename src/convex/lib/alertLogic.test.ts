@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildEmergencyMessages,
+  canonicalPhone,
   computeAlertStatus,
   effectiveChannels,
   isDuplicatePhone,
@@ -88,6 +89,14 @@ describe("phone validation", () => {
   it("normalizes separators and country prefixes", () => {
     assert.equal(normalizePhone("+1 (555) 000-1234"), "+15550001234");
     assert.equal(normalizePhone("555-000-1234"), "5550001234");
+  });
+
+  it("canonicalizes to bare digits regardless of the '+' convention", () => {
+    assert.equal(canonicalPhone("+1 (555) 000-1234"), "15550001234");
+    assert.equal(canonicalPhone("+15550001234"), "15550001234");
+    assert.equal(canonicalPhone("15550001234"), "15550001234");
+    assert.equal(canonicalPhone("555-000-1234"), "5550001234");
+    assert.equal(canonicalPhone(""), "");
   });
 
   it("rejects empty, too-short, and too-long numbers", () => {

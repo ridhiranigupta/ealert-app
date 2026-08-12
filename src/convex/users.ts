@@ -2,6 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { cleanInput, getCurrentUserOrNull, requireUser } from "./lib/session";
+import { canonicalPhone } from "./lib/alertLogic";
 import { logActivity } from "./services/activity";
 
 /**
@@ -49,9 +50,11 @@ export const updateAccount = mutation({
     const name = cleanInput(args.name, 80);
     const phone = cleanInput(args.phone, 30);
 
+    // Store the canonical (digits-only) form so invite matching compares
+    // like with like regardless of how each user typed their number.
     await ctx.db.patch(userId, {
       ...(name !== undefined ? { name } : {}),
-      ...(phone !== undefined ? { phone } : {}),
+      ...(phone !== undefined ? { phone: canonicalPhone(phone) } : {}),
     });
     await logActivity(ctx, {
       userId,
