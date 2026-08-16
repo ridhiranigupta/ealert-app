@@ -24,6 +24,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { toast } from "sonner";
+import { formatDistanceMeters } from "@/convex/lib/emergencyLogic";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,6 +81,9 @@ export default function EmergencySession() {
   const joinVideo = useMutation(api.emergencySessions.joinVideo);
   const stopVideo = useMutation(api.emergencySessions.stopVideo);
   const endSession = useMutation(api.emergencySessions.endSession);
+  const respondNearby = useMutation(api.emergencyNearby.respondNearby);
+  const shareHelperLocation = useMutation(api.emergencyNearby.shareHelperLocation);
+  const stopHelperLocation = useMutation(api.emergencyNearby.stopHelperLocation);
   const online = useOnlineStatus();
 
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -161,6 +165,34 @@ export default function EmergencySession() {
       intervalRef.current = null;
     };
   }, [myRole, shareResponderLocation, isOpen, sessionId, updateResponderLocation]);
+
+  // Nearby helper: share their own location while opted in (responding only).
+  useEffect(() => {
+    if (myRole !== "helper_nearby" || !shareResponderLocation || !isOpen) return;
+    let cancelled = false;
+    const push = async () => {
+      try {
+        const pos = await getPosition();
+        if (cancelled) return;
+        await shareHelperLocation({
+          sessionId,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+      } catch {
+        // silent — a single failure shouldn't stop the stream
+      }
+    };
+    push();
+    const interval = setInterval(push, LOCATION_INTERVAL_MS);
+    intervalRef.current = interval;
+    return () => {
+      cancelled = true;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    };
+  }, [myRole, shareResponderLocation, isOpen, sessionId, shareHelperLocation]);
 
   // Stop streams when the session closes.
   useEffect(() => {
@@ -259,6 +291,29 @@ export default function EmergencySession() {
       toast.success("Video stopped.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not stop video.");
+    }
+  };
+
+  const handleRespondNearby = async () => {
+    setResponding(true);
+    try {
+      await respondNearby({ sessionId });
+      if (respondWithLocation) setShareResponderLocation(true);
+      toast.success("You're marked as helping — the sender can see you now.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not mark you as helping.");
+    } finally {
+      setResponding(false);
+    }
+  };
+
+  const handleStopHelperLocation = async () => {
+    try {
+      await stopHelperLocation({ sessionId });
+      setShareResponderLocation(false);
+      toast.success("Location sharing stopped.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not stop sharing.");
     }
   };
 
@@ -662,6 +717,134 @@ export default function EmergencySession() {
                 <Phone className="size-4" /> Call {data.owner.name ?? "them"}
               </a>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Nearby helper view: location only while active — never video/audio */}
+      {myRole === "helper_nearby" && (
+        <div className="grid gap-5 lg:grid-cols-3">
+          {/* Emergency location (active only) */}
+          <div className="rounded-3xl border border-border bg-card p-6 lg:col-span-2">
+            <h2 className="flex items-center gap-2 font-display text-base font-semibold">
+              <MapPin className="size-4 text-sky-600" /> Emergency location
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              You were alerted because you're near this emergency. The location is visible only
+              while the emergency is active and is never stored with your alert.
+            </p>
+            {data.latestLocation ? (
+              <>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Last updated {timeAgo(data.locationUpdatedAt ?? data.latestLocation.timestamp)} ·
+                  accuracy {Math.round(data.latestLocation.accuracy ?? 0)} m
+                </p>
+                <a
+                  href={mapsLink(data.latestLocation.lat, data.latestLocation.lng)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2.5 text-sm text-sky-700 transition-colors hover:bg-sky-100"
+                >
+                  <span className="font-mono text-xs">
+                    {data.latestLocation.lat.toFixed(5)}, {data.latestLocation.lng.toFixed(5)}
+                  </span>
+                  <ExternalLink className="size-4" />
+                </a>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {isOpen
+                  ? "Waiting for the first location update…"
+                  : "This emergency has ended — location access is no longer available."}
+              </p>
+            )}
+          </div>
+
+          {/* Offer help */}
+          <div className="rounded-3xl border border-border bg-card p-6">
+            <h2 className="flex items-center gap-2 font-display text-base font-semibold">
+              <HeartHandshake className="size-4 text-emerald-600" /> Offer help
+            </h2>
+            <dl className="mt-3 space-y-2.5 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Emergency type
+                </dt>
+                <dd className="font-medium uppercase">{data.alertType}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Distance
+                </dt>
+                <dd className="font-medium">
+                  {data.helper ? formatDistanceMeters(data.helper.distanceMeters) : "—"}
+                </dd>
+              </div>
+            </dl>
+
+            {isOpen && data.helper?.status === "notified" && (
+              <div className="mt-4 space-y-3">
+                <label className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={respondWithLocation}
+                    onChange={(e) => setRespondWithLocation(e.target.checked)}
+                    className="size-4 rounded border-border accent-emerald-500"
+                  />
+                  Also share my live location while responding
+                </label>
+                <Button
+                  className="w-full rounded-xl bg-emerald-500 text-white hover:bg-emerald-600"
+                  onClick={handleRespondNearby}
+                  disabled={responding}
+                >
+                  {responding ? <Loader2 className="size-4 animate-spin" /> : <HeartHandshake className="size-4" />}
+                  I Can Help
+                </Button>
+              </div>
+            )}
+
+            {isOpen && data.helper?.status === "responding" && (
+              <div className="mt-4 space-y-3">
+                <p className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-medium text-emerald-700">
+                  <CheckCircle2 className="size-4 shrink-0" />
+                  You're responding — thank you!
+                </p>
+                {data.helper.shareLocation ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      The sender can see your live location while you respond.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-xl border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      onClick={handleStopHelperLocation}
+                    >
+                      <Square className="size-4" /> Stop sharing my location
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-xl border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    onClick={() => setShareResponderLocation(true)}
+                  >
+                    <LocateFixed className="size-4" /> Share my live location
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {!isOpen && (
+              <p className="mt-4 text-sm text-muted-foreground">
+                This emergency has ended and can no longer accept help.
+              </p>
+            )}
+
+            <p className="mt-4 border-t border-border pt-3 text-[11px] leading-relaxed text-muted-foreground">
+              As a nearby helper you can see the location and offer help — you don't get access to
+              video, audio or the sender's private contact details.
+            </p>
           </div>
         </div>
       )}

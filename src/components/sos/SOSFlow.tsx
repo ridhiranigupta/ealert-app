@@ -11,6 +11,7 @@ import {
   Phone,
   ShieldCheck,
   Siren,
+  Users,
   WifiOff,
 } from "lucide-react";
 import {
@@ -76,6 +77,7 @@ export interface SOSResult {
   failed?: number;
   existing?: boolean;
   sessionId?: string;
+  nearbyNotified?: number;
 }
 
 interface SOSFlowValue {
@@ -182,6 +184,7 @@ export function SOSFlowProvider({ children }: { children: React.ReactNode }) {
           failed: result.failed,
           existing: result.existing,
           sessionId: result.sessionId as string | undefined,
+          nearbyNotified: result.nearbyNotified,
         };
         setStage("success");
       } catch (error) {
@@ -474,6 +477,13 @@ function SOSModal({
                   <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1 font-mono text-xs text-sky-700">
                     <CheckCircle2 className="size-3.5" />
                     channel: {result.channel}
+                  </p>
+                )}
+
+                {(result?.nearbyNotified ?? 0) > 0 && (
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1 font-mono text-xs text-cyan-700">
+                    <Users className="size-3.5" />
+                    {result?.nearbyNotified} nearby EAlert user{result?.nearbyNotified === 1 ? "" : "s"} alerted in your area
                   </p>
                 )}
 

@@ -35,7 +35,9 @@ export type Action =
   | "emergency_opened"
   | "emergency_location_updated"
   | "video_started"
-  | "video_ended";
+  | "video_ended"
+  | "nearby_helpers_notified"
+  | "nearby_helper_responding";
 
 export type Result = "success" | "failed" | "cancelled" | "blocked";
 

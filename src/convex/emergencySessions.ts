@@ -3,8 +3,14 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { requireUser } from "./lib/session";
-import { canAccessEmergencySession, canTransitionSession } from "./lib/emergencyLogic";
+import {
+  canAccessEmergencySession,
+  canAccessEmergencyVideo,
+  canTransitionSession,
+  helperCanSeeLocation,
+} from "./lib/emergencyLogic";
 import { isVerifiedContactOf } from "./relationships";
+import { findHelperRow, listHelpersForOwner, revokeHelperAccess } from "./emergencyNearby";
 import { logActivity } from "./services/activity";
 import { createNotification } from "./services/notifications";
 import { liveKitConfig, livekitToken, videoProviderStatus } from "./lib/videoProvider";
@@ -100,9 +106,11 @@ export const getSession = query({
       userId,
       session.alertId,
     );
+    const helperRow = await findHelperRow(ctx, session._id, userId);
     const access = canAccessEmergencySession({
       isOwner,
       isVerifiedContact: isVerifiedRecipient,
+      isHelperNearby: helperRow !== null,
       role: user.role,
     });
     if (!access) {
@@ -129,8 +137,12 @@ export const getSession = query({
         ? recipients.find((r) => r.recipientUserId === userId) ?? null
         : null;
 
-    // Precise live location only for the owner and verified contacts.
-    const showLocation = access === "owner" || access === "verified_contact";
+    // Precise live location for the owner and verified contacts, and for
+    // nearby helpers ONLY while the emergency is still active.
+    const showLocation =
+      access === "owner" ||
+      access === "verified_contact" ||
+      (access === "helper_nearby" && helperCanSeeLocation(session.status));
     const ownerLocation = showLocation
       ? await latestLocation(ctx, session._id, "owner")
       : null;
@@ -158,13 +170,16 @@ export const getSession = query({
       },
       myRole: access,
       owner:
-        access === "owner" || access === "verified_contact"
-          ? {
-              name: owner?.name ?? "An EAlert user",
-              phone: access === "verified_contact" ? owner?.phone : undefined,
-            }
-          : { name: owner?.name ?? "An EAlert user" },
+        access === "helper_nearby" && helperRow
+          ? { name: helperRow.ownerFirstName } // first name only — never full identity
+          : access === "owner" || access === "verified_contact"
+            ? {
+                name: owner?.name ?? "An EAlert user",
+                phone: access === "verified_contact" ? owner?.phone : undefined,
+              }
+            : { name: owner?.name ?? "An EAlert user" },
       alertId: session.alertId,
+      alertType: alert?.type ?? "sos",
       myRecipient:
         myRecipient &&
         ({
@@ -206,7 +221,7 @@ export const getSession = query({
             timestamp: responderLocation.timestamp,
           }
         : null,
-      video: video
+      video: video && canAccessEmergencyVideo(access)
         ? {
             provider: video.provider,
             roomId: video.roomId,
@@ -214,11 +229,36 @@ export const getSession = query({
             startedAt: video.startedAt,
           }
         : null,
-      videoConfig: {
-        configured: videoConfig.configured,
-        provider: videoConfig.provider,
-        url: videoConfig.url,
-      },
+      videoConfig: canAccessEmergencyVideo(access)
+        ? {
+            configured: videoConfig.configured,
+            provider: videoConfig.provider,
+            url: videoConfig.url,
+          }
+        : { configured: false },
+      // Nearby helpers notified about this session (owner view only).
+      helpers: access === "owner" ? await listHelpersForOwner(ctx, session._id) : undefined,
+      // The helper's own record — lets them see distance / respond state.
+      helper:
+        access === "helper_nearby" && helperRow
+          ? {
+              distanceMeters: helperRow.distanceMeters,
+              status: helperRow.status,
+              respondedAt: helperRow.respondedAt,
+              shareLocation: Boolean(helperRow.shareLocation),
+              myLocation:
+                helperRow.shareLocation &&
+                helperRow.responderLat != null &&
+                helperRow.responderLng != null
+                  ? {
+                      lat: helperRow.responderLat,
+                      lng: helperRow.responderLng,
+                      accuracy: helperRow.responderAccuracy ?? undefined,
+                      timestamp: helperRow.responderUpdatedAt ?? undefined,
+                    }
+                  : null,
+            }
+          : undefined,
     };
   },
 });
@@ -648,6 +688,9 @@ export const endSession = mutation({
       }
     }
 
+    // Nearby helpers lose location access the moment the session ends.
+    await revokeHelperAccess(ctx, session._id);
+
     // Notify verified contacts that the emergency is over.
     const recipients = await ctx.db
       .query("alertRecipients")
@@ -698,6 +741,7 @@ export const cancelSession = mutation({
       videoActive: false,
       updatedAt: now,
     });
+    await revokeHelperAccess(ctx, session._id);
     return { status: "cancelled" as const };
   },
 });
@@ -743,6 +787,7 @@ export const expireStaleSessions = internalMutation({
           await ctx.db.patch(video._id, { status: "ended", endedAt: now });
         }
       }
+      await revokeHelperAccess(ctx, session._id);
       expired++;
     }
     return { expired };

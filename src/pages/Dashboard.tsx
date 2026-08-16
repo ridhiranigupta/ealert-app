@@ -1,16 +1,19 @@
 import { api } from "@/convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
   BellRing,
+  ExternalLink,
   HeartHandshake,
+  Loader2,
   MapPin,
   ScrollText,
   ShieldCheck,
   Siren,
 } from "lucide-react";
-import { Link } from "react-router";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { AlertCard } from "@/components/alerts/AlertCard";
 import { SOSButton } from "@/components/sos/SOSFlow";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -18,6 +21,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/use-auth";
+import { formatDistanceMeters } from "@/convex/lib/emergencyLogic";
 import { formatRelative, greeting } from "@/lib/format";
 
 function profileCompletion(profile: {
@@ -51,6 +55,12 @@ export default function Dashboard() {
   const latestLocation = useQuery(api.locations.latest);
   const activeSession = useQuery(api.emergencySessions.myActiveSession);
   const contactSessions = useQuery(api.emergencySessions.listSessionsForContact);
+  const nearbyEmergencies = useQuery(api.emergencyNearby.myNearbyEmergencies);
+  const respondNearby = useMutation(api.emergencyNearby.respondNearby);
+  const navigate = useNavigate();
+  const [helpingId, setHelpingId] = useState<string | null>(null);
+
+  const activeNearby = nearbyEmergencies?.filter((n) => n.isOpen) ?? [];
 
   const completion = profile?.profile ? profileCompletion(profile.profile) : 0;
   const firstName = user?.name?.split(/\s+/)[0] ?? "there";
@@ -119,6 +129,99 @@ export default function Dashboard() {
                     Open emergency <ArrowRight className="size-4" />
                   </Link>
                 </Button>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Nearby emergencies where I'm a helper */}
+      {activeNearby.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="overflow-hidden rounded-[1.5rem] border border-sky-200 bg-gradient-to-br from-sky-50 via-sky-50/40 to-white p-5 sm:p-6"
+        >
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="relative flex size-14 shrink-0 items-center justify-center">
+              <span className="animate-sos-ring absolute inset-0 rounded-full border-2 border-sky-400/60" />
+              <span className="flex size-11 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg shadow-sky-500/30">
+                <MapPin className="size-6" />
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-lg font-bold text-sky-700">
+                Nearby emergency{activeNearby.length === 1 ? "" : "ies"} in your area
+              </p>
+              <p className="text-xs text-muted-foreground">
+                An EAlert user nearby needs help. You can see the location while it's active —
+                your limited view never includes video or private contact details.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-2.5">
+            {activeNearby.map((n) => (
+              <div
+                key={n.sessionId}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-200/80 bg-white/80 px-4 py-3 transition-colors hover:bg-white"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600">
+                    <Siren className="size-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">
+                      {n.ownerFirstName} needs help
+                    </p>
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {n.emergencyType} · {formatDistanceMeters(n.distanceMeters)} away
+                    </p>
+                    {n.location && (
+                      <a
+                        href={`https://maps.google.com/?q=${n.location.lat.toFixed(6)},${n.location.lng.toFixed(6)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 font-mono text-[11px] text-sky-700 transition-colors hover:bg-sky-100"
+                      >
+                        {n.location.lat.toFixed(4)}, {n.location.lng.toFixed(4)}
+                        <ExternalLink className="size-3" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {n.status === "notified" ? (
+                    <Button
+                      size="sm"
+                      className="rounded-xl bg-emerald-500 text-white hover:bg-emerald-600"
+                      disabled={helpingId === n.sessionId}
+                      onClick={async () => {
+                        setHelpingId(n.sessionId);
+                        try {
+                          await respondNearby({ sessionId: n.sessionId });
+                          navigate(`/emergency/${n.sessionId}`);
+                        } catch {
+                          setHelpingId(null);
+                        }
+                      }}
+                    >
+                      {helpingId === n.sessionId ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <HeartHandshake className="size-4" />
+                      )}
+                      I Can Help
+                    </Button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                      <HeartHandshake className="size-3.5" /> Responding
+                    </span>
+                  )}
+                  <Button asChild size="sm" variant="outline" className="rounded-xl border-sky-200 bg-white text-sky-700 hover:bg-sky-50">
+                    <Link to={`/emergency/${n.sessionId}`}>View</Link>
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

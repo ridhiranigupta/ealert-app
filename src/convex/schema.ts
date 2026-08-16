@@ -282,6 +282,9 @@ const schema = defineSchema(
       locationLabel: v.optional(v.string()),
       locationShared: v.boolean(),
       recipientsCount: v.number(),
+      // EAlert users in the configured radius who received a limited
+      // "Nearby Emergency" alert (separate from contacts above).
+      nearbyHelpersCount: v.optional(v.number()),
       channel: v.optional(v.string()), // "demo" | "sms" | "email" | "push"
       failureReason: v.optional(v.string()),
       note: v.optional(v.string()),
@@ -340,6 +343,19 @@ const schema = defineSchema(
     })
       .index("by_userId", ["userId"])
       .index("by_userId_status", ["userId", "status"]),
+
+    // Latest known location per user — a single upserted row per account.
+    // Only written when the user explicitly shares a location (Location
+    // page or an SOS with coordinates), which doubles as the opt-in for
+    // being discoverable by the nearby-helper radius search. No history is
+    // kept here; history lives in `locations`.
+    userLocations: defineTable({
+      userId: v.id("users"),
+      lat: v.number(),
+      lng: v.number(),
+      accuracy: v.optional(v.number()),
+      updatedAt: v.number(),
+    }).index("by_userId", ["userId"]),
 
     // Browser push / device registrations (tokens are stored for future
     // push delivery; never sent to the client of another user).
@@ -443,6 +459,39 @@ const schema = defineSchema(
       endedAt: v.optional(v.number()),
       expiresAt: v.optional(v.number()),
     }).index("by_emergencySessionId", ["emergencySessionId"]),
+
+    // Limited "Nearby Emergency" broadcasts. One row per nearby EAlert
+    // user notified about a session. These users are NOT emergency
+    // contacts: they can see the emergency location while the session is
+    // active and can offer help, but they can never see video, audio,
+    // phone numbers or owner controls.
+    //
+    // Privacy: the row never stores the emergency's exact coordinates.
+    // Location visibility is derived from the session's live stream and is
+    // revoked as soon as the session ends (getSession returns no location
+    // for helpers, and responder coordinates are cleared on end).
+    emergencyHelpers: defineTable({
+      sessionId: v.id("emergencySessions"),
+      alertId: v.id("alerts"),
+      userId: v.id("users"),
+      ownerId: v.id("users"),
+      ownerFirstName: v.string(),
+      distanceMeters: v.number(),
+      status: v.union(v.literal("notified"), v.literal("responding")),
+      createdAt: v.number(),
+      respondedAt: v.optional(v.number()),
+      // Helper opt-in to share their own live location while responding.
+      // Cleared (null) when the session ends.
+      shareLocation: v.optional(v.boolean()),
+      responderLat: v.optional(v.union(v.number(), v.null())),
+      responderLng: v.optional(v.union(v.number(), v.null())),
+      responderAccuracy: v.optional(v.union(v.number(), v.null())),
+      responderUpdatedAt: v.optional(v.number()),
+    })
+      .index("by_sessionId", ["sessionId"])
+      .index("by_userId", ["userId"])
+      .index("by_sessionId_userId", ["sessionId", "userId"])
+      .index("by_alertId", ["alertId"]),
   },
   {
     schemaValidation: false,

@@ -14,6 +14,8 @@ import { dispatchEmergencyAlert } from "./services/notify";
 import type { RecipientOutcome } from "./services/notify";
 import { dispatchEmergencyPush } from "./services/push";
 import { createSessionForAlert } from "./emergencySessions";
+import { findNearbyHelpers, helperRadiusMeters, notifyNearbyHelpers } from "./emergencyNearby";
+import { upsertUserLocation } from "./locations";
 
 /** Basic rate limit: at most one real alert per user per 10 seconds. */
 const SOS_RATE_LIMIT_MS = 10_000;
@@ -362,6 +364,39 @@ export const triggerSOS = mutation({
         label,
         createdAt: now,
       });
+      // Keep the sender's latest known position fresh so they stay
+      // discoverable as a nearby helper for other users' emergencies.
+      await upsertUserLocation(ctx, {
+        userId,
+        lat: args.lat!,
+        lng: args.lng!,
+        accuracy: args.accuracy,
+        updatedAt: now,
+      });
+    }
+
+    // ── Nearby Emergency broadcast: LIMITED alert to EAlert users within
+    //    the configured radius (default 5 km). They are not contacts:
+    //    location-only access, no video, no phone numbers. ──
+    let nearbyNotified = 0;
+    if (hasCoords) {
+      const helpers = await findNearbyHelpers(ctx, {
+        ownerId: userId,
+        alertId,
+        lat: args.lat!,
+        lng: args.lng!,
+        radiusMeters: helperRadiusMeters(),
+        now: Date.now(),
+      });
+      if (helpers.length > 0) {
+        nearbyNotified = await notifyNearbyHelpers(ctx, {
+          sessionId,
+          alertId,
+          ownerId: userId,
+          ownerName: user.name,
+          helpers,
+        });
+      }
     }
 
     // ── Derive the final alert status from real outcomes ──
@@ -385,6 +420,7 @@ export const triggerSOS = mutation({
       updatedAt: Date.now(),
       channel,
       failureReason,
+      nearbyHelpersCount: nearbyNotified,
     });
 
     // ── Audit + in-app notification (honest wording) ──
@@ -400,6 +436,7 @@ export const triggerSOS = mutation({
         channel,
         status: finalStatus,
         locationShared: hasCoords,
+        nearbyHelpers: nearbyNotified,
       }),
     });
 
@@ -413,7 +450,7 @@ export const triggerSOS = mutation({
           : queuedCount > 0
             ? "SOS alert recorded — delivery pending"
             : "SOS alert could not be delivered";
-    const body =
+    const baseBody =
       contacts.length === 0
         ? "No active emergency contacts were notified. Add contacts so help can reach them."
         : deliveredCount > 0
@@ -423,6 +460,11 @@ export const triggerSOS = mutation({
           : queuedCount > 0
             ? "Your alert is recorded. SMS/email delivery needs provider credentials, and app delivery needs verified contacts with push enabled."
             : "No contact could be reached. Check your contacts and try again.";
+    const body =
+      baseBody +
+      (nearbyNotified > 0
+        ? ` Also alerted ${nearbyNotified} nearby EAlert user${nearbyNotified === 1 ? "" : "s"} in your area.`
+        : "");
 
     await createNotification(ctx, {
       userId,
@@ -442,6 +484,7 @@ export const triggerSOS = mutation({
       delivered: deliveredCount,
       queued: queuedCount,
       failed: legacyDispatch.failed + outcomes.filter((o) => o.status === "failed").length,
+      nearbyNotified,
     };
   },
 });
