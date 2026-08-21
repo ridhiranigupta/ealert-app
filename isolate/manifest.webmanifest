@@ -1,0 +1,17 @@
+{
+  "name": "EAlert — Emergency Alert App",
+  "short_name": "EAlert",
+  "description": "Your safety, one tap away. Reach trusted contacts and share your live location when you need help.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f3fb",
+  "theme_color": "#7c6ff0",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+const e=["Mother","Father","Brother","Sister","Friend","Partner","Relative","Colleague","Neighbor","Other"],a=[{value:"sms",label:"SMS",hint:"Text message"},{value:"email",label:"Email",hint:"Email (needs an address)"},{value:"push",label:"Push",hint:"App push (needs setup)"}],s={name:"",relationship:"",phone:"",email:"",active:!0,channels:[]};export{a as c,s as e,e as r};
