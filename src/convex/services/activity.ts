@@ -37,7 +37,11 @@ export type Action =
   | "video_started"
   | "video_ended"
   | "nearby_helpers_notified"
-  | "nearby_helper_responding";
+  | "nearby_helper_responding"
+  | "phone_otp_sent"
+  | "phone_verified"
+  | "email_verification_sent"
+  | "email_verified";
 
 export type Result = "success" | "failed" | "cancelled" | "blocked";
 

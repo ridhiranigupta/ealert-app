@@ -5,15 +5,19 @@ import {
   BellOff,
   BellRing,
   Camera,
+  CheckCircle2,
   Fingerprint,
   History,
   KeyRound,
   Loader2,
   Lock,
+  Mail,
+  Phone,
   Save,
   ShieldCheck,
   Trash2,
   UserRound,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
@@ -53,6 +57,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const data = useQuery(api.profiles.getProfile);
   const activity = useQuery(api.activityLogs.listMine);
+  const verificationStatus = useQuery(api.verification.getVerificationStatus);
   const upsertProfile = useMutation(api.profiles.upsertProfile);
   const updateAccount = useMutation(api.users.updateAccount);
   const deleteAccount = useMutation(api.users.deleteAccount);
@@ -227,6 +232,8 @@ export default function Profile() {
             </div>
           </div>
 
+          <VerificationCard status={verificationStatus} />
+
           <PushNotificationsCard />
 
           <div className="rounded-3xl border border-rose-400/20 bg-rose-500/[0.04] p-6">
@@ -374,6 +381,224 @@ function Field({ label, children, className }: { label: string; children: React.
     <div className={`space-y-1.5 ${className ?? ""}`}>
       <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
       {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Account verification card                                           */
+/* ------------------------------------------------------------------ */
+
+function VerificationCard({
+  status,
+}: {
+  status:
+    | {
+        phoneVerified: boolean;
+        emailVerified: boolean;
+        phone: string | null;
+        email: string | null;
+      }
+    | undefined;
+}) {
+  const sendPhoneOtp = useMutation(api.verification.sendPhoneOtp);
+  const verifyPhoneOtp = useMutation(api.verification.verifyPhoneOtp);
+  const sendEmailVerification = useMutation(api.verification.sendEmailVerification);
+  const verifyEmailToken = useMutation(api.verification.verifyEmailToken);
+
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneOtpCode, setPhoneOtpCode] = useState("");
+  const [phoneSending, setPhoneSending] = useState(false);
+  const [phoneVerifying, setPhoneVerifying] = useState(false);
+
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailToken, setEmailToken] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailVerifying, setEmailVerifying] = useState(false);
+
+  const phoneOk = status?.phoneVerified === true;
+  const emailOk = status?.emailVerified === true;
+
+  const handleSendPhoneOtp = async () => {
+    setPhoneSending(true);
+    try {
+      const result = await sendPhoneOtp();
+      if (result.alreadyVerified) {
+        toast.success("Phone is already verified");
+      } else {
+        setPhoneOtpSent(true);
+        toast.success("Verification code sent to your phone");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send code.");
+    } finally {
+      setPhoneSending(false);
+    }
+  };
+
+  const handleVerifyPhone = async () => {
+    setPhoneVerifying(true);
+    try {
+      const result = await verifyPhoneOtp({ otp: phoneOtpCode });
+      if (result.alreadyVerified) {
+        toast.success("Phone is already verified");
+      } else {
+        toast.success("Phone verified!");
+        setPhoneOtpSent(false);
+        setPhoneOtpCode("");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Verification failed.");
+    } finally {
+      setPhoneVerifying(false);
+    }
+  };
+
+  const handleSendEmailVerification = async () => {
+    setEmailSending(true);
+    try {
+      const result = await sendEmailVerification();
+      if (result.alreadyVerified) {
+        toast.success("Email is already verified");
+      } else {
+        setEmailSent(true);
+        toast.success("Verification email sent");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send email.");
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  const handleVerifyEmail = async () => {
+    setEmailVerifying(true);
+    try {
+      const result = await verifyEmailToken({ token: emailToken });
+      if (result.alreadyVerified) {
+        toast.success("Email is already verified");
+      } else {
+        toast.success("Email verified!");
+        setEmailSent(false);
+        setEmailToken("");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Verification failed.");
+    } finally {
+      setEmailVerifying(false);
+    }
+  };
+
+  if (!status) return null;
+
+  return (
+    <div className="rounded-3xl border border-border bg-card p-6">
+      <h2 className="flex items-center gap-2 font-display text-base font-semibold">
+        <ShieldCheck className="size-4 text-violet-600" /> Account verification
+      </h2>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        Verified accounts can use SOS, add emergency contacts, and appear as nearby helpers.
+      </p>
+
+      <ul className="mt-4 space-y-3">
+        {/* Phone verification */}
+        <li className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Phone className="size-4 text-muted-foreground" />
+            <span className="text-sm">Phone</span>
+          </div>
+          {phoneOk ? (
+            <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
+              <CheckCircle2 className="size-3.5" /> Verified
+            </span>
+          ) : phoneOtpSent ? (
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={phoneOtpCode}
+                onChange={(e) => setPhoneOtpCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="000000"
+                className="h-8 w-20 rounded-lg text-center font-mono text-xs"
+              />
+              <Button
+                size="sm"
+                className="h-8 rounded-lg text-xs"
+                onClick={handleVerifyPhone}
+                disabled={phoneVerifying || phoneOtpCode.length !== 6}
+              >
+                {phoneVerifying ? <Loader2 className="size-3 animate-spin" /> : "Verify"}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-lg text-xs"
+              onClick={handleSendPhoneOtp}
+              disabled={phoneSending || !status.phone}
+            >
+              {phoneSending ? <Loader2 className="size-3 animate-spin" /> : <Phone className="size-3" />}
+              {status.phone ? "Verify" : "Add phone first"}
+            </Button>
+          )}
+        </li>
+
+        {/* Email verification */}
+        <li className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Mail className="size-4 text-muted-foreground" />
+            <span className="text-sm">Email</span>
+          </div>
+          {emailOk ? (
+            <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
+              <CheckCircle2 className="size-3.5" /> Verified
+            </span>
+          ) : emailSent ? (
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="text"
+                value={emailToken}
+                onChange={(e) => setEmailToken(e.target.value)}
+                placeholder="Paste token"
+                className="h-8 w-24 rounded-lg text-center font-mono text-xs"
+              />
+              <Button
+                size="sm"
+                className="h-8 rounded-lg text-xs"
+                onClick={handleVerifyEmail}
+                disabled={emailVerifying || emailToken.length < 10}
+              >
+                {emailVerifying ? <Loader2 className="size-3 animate-spin" /> : "Verify"}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-lg text-xs"
+              onClick={handleSendEmailVerification}
+              disabled={emailSending || !status.email}
+            >
+              {emailSending ? <Loader2 className="size-3 animate-spin" /> : <Mail className="size-3" />}
+              Verify
+            </Button>
+          )}
+        </li>
+      </ul>
+
+      {!phoneOk || !emailOk ? (
+        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-700">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          Verification is required to trigger SOS, add emergency contacts, and appear as a nearby helper.
+        </div>
+      ) : (
+        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-xs text-emerald-700">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+          Your account is fully verified. All safety features are unlocked.
+        </div>
+      )}
     </div>
   );
 }

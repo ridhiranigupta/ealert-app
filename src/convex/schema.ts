@@ -218,6 +218,8 @@ const schema = defineSchema(
       phone: v.optional(v.string()),
       status: v.optional(userStatusValidator),
       lastLoginAt: v.optional(v.number()),
+      phoneVerified: v.optional(v.boolean()),
+      emailVerified: v.optional(v.boolean()),
     })
       .index("email", ["email"]) // do not remove or modify
       .index("role", ["role"]),
@@ -499,6 +501,22 @@ const schema = defineSchema(
       .index("by_userId", ["userId"])
       .index("by_sessionId_userId", ["sessionId", "userId"])
       .index("by_alertId", ["alertId"]),
+
+    // Phone OTP codes and email verification tokens — separate from
+    // the auth verificationTokens table so we have full type safety.
+    phoneOtpCodes: defineTable({
+      userId: v.id("users"),
+      code: v.string(),
+      expiresAt: v.number(),
+    })
+      .index("by_userId", ["userId"]),
+
+    emailVerifyTokens: defineTable({
+      userId: v.id("users"),
+      token: v.string(),
+      expiresAt: v.number(),
+    })
+      .index("by_userId", ["userId"]),
   },
   {
     schemaValidation: false,

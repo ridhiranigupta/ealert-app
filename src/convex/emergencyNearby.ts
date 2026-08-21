@@ -92,6 +92,8 @@ export async function findNearbyHelpers(
     const user = await ctx.db.get(spot.userId);
     if (!user) continue;
     if (user.status !== "active") continue; // suspended/disabled users excluded
+    // Only fully verified users (phone + email) may receive nearby broadcasts.
+    if (user.phoneVerified !== true || user.emailVerified !== true) continue;
     // Respect community assistance opt-out: users who explicitly disabled
     // community assistance are excluded from the nearby broadcast.
     const profile = await ctx.db
