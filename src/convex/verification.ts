@@ -3,7 +3,6 @@ import { mutation, query } from "./_generated/server";
 import { requireUser } from "./lib/session";
 import { logActivity } from "./services/activity";
 import { createNotification } from "./services/notifications";
-import axios from "axios";
 import { RandomReader, generateRandomString } from "@oslojs/crypto/random";
 
 /* ------------------------------------------------------------------ */
@@ -94,27 +93,37 @@ export const sendPhoneOtp = mutation({
       expiresAt: now + OTP_MAX_AGE_MS,
     });
 
-    // Send the OTP via SMS.
-    // Uses the same freebuff OTP service for delivery.
+    // Send the OTP via SMS using native fetch (Convex V8 runtime).
+    const maskedPhone = user.phone.replace(/(\d{2})\d+(\d{2})/, "$1***$2");
+    console.log(`[verify] sendPhoneOtp → to=${maskedPhone} otp_length=${otp.length}`);
     try {
-      await axios.post(
-        "https://auth.freebuff.app/send_otp",
-        {
+      const res = await fetch("https://auth.freebuff.app/send_otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": "fb_email_2crN1hqIArZP2bEfvjp5Qik4",
+        },
+        body: JSON.stringify({
           to: user.phone,
           otp,
           appName: process.env.VLY_APP_NAME || "EAlert",
-        },
-        {
-          headers: {
-            "x-api-key": "fb_email_2crN1hqIArZP2bEfvjp5Qik4",
-          },
-        },
-      );
-    } catch {
-      // If SMS delivery fails, still record that we tried — the user
-      // can retry. We do NOT store the OTP in a way that bypasses SMS.
+        }),
+      });
+      console.log(`[verify] sendPhoneOtp ← status=${res.status}`);
+      const body = await res.text();
+      console.log(`[verify] sendPhoneOtp body=${body.slice(0, 300)}`);
+      if (!res.ok) {
+        console.error(`[verify] sendPhoneOtp FAILED status=${res.status} body=${body.slice(0, 300)}`);
+        throw new ConvexError(
+          `Could not send verification code (provider HTTP ${res.status}). Please try again.`,
+        );
+      }
+    } catch (err) {
+      console.error(`[verify] sendPhoneOtp EXCEPTION:`, err);
+      // If the error is already a ConvexError (from above), re-throw it.
+      if (err instanceof ConvexError) throw err;
       throw new ConvexError(
-        "Could not send verification code. Please try again.",
+        `Could not send verification code: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
 
@@ -236,25 +245,36 @@ export const sendEmailVerification = mutation({
       expiresAt: now + EMAIL_TOKEN_MAX_AGE_MS,
     });
 
-    // Send verification email via the freebuff OTP service.
-    // We use the same endpoint with a descriptive OTP that acts as the token.
+    // Send verification email via fetch (Convex V8 runtime).
+    const maskedEmail = email.replace(/(.{2}).+(@.+)/, "$1***$2");
+    console.log(`[verify] sendEmailVerification → to=${maskedEmail}`);
     try {
-      await axios.post(
-        "https://auth.freebuff.app/send_otp",
-        {
+      const res = await fetch("https://auth.freebuff.app/send_otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": "fb_email_2crN1hqIArZP2bEfvjp5Qik4",
+        },
+        body: JSON.stringify({
           to: email,
           otp: token,
           appName: process.env.VLY_APP_NAME || "EAlert",
-        },
-        {
-          headers: {
-            "x-api-key": "fb_email_2crN1hqIArZP2bEfvjp5Qik4",
-          },
-        },
-      );
-    } catch {
+        }),
+      });
+      console.log(`[verify] sendEmailVerification ← status=${res.status}`);
+      const body = await res.text();
+      console.log(`[verify] sendEmailVerification body=${body.slice(0, 300)}`);
+      if (!res.ok) {
+        console.error(`[verify] sendEmailVerification FAILED status=${res.status} body=${body.slice(0, 300)}`);
+        throw new ConvexError(
+          `Could not send verification email (provider HTTP ${res.status}). Please try again.`,
+        );
+      }
+    } catch (err) {
+      console.error(`[verify] sendEmailVerification EXCEPTION:`, err);
+      if (err instanceof ConvexError) throw err;
       throw new ConvexError(
-        "Could not send verification email. Please try again.",
+        `Could not send verification email: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
 
