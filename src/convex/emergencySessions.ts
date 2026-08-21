@@ -501,13 +501,17 @@ export const joinVideo = mutation({
     if (!video || video.status !== "active") {
       return { configured: true, active: false, error: "The live video session has ended." };
     }
+    // One-way broadcast: the victim is the ONLY publisher.
+    // Verified contacts and nearby helpers receive subscribe-only tokens —
+    // they can see the victim's live stream but can never publish their own
+    // camera, microphone, or screen share.
     const token = await livekitToken({
       apiKey: lk.apiKey,
       apiSecret: lk.apiSecret,
       room: video.roomId,
       identity: userId,
       name: user.name,
-      canPublish: true,
+      canPublish: false,
       ttlSeconds: 2 * 3600,
     });
     return {
@@ -763,7 +767,16 @@ export const cancelSession = mutation({
 /* Cron: expire stale sessions                                         */
 /* ------------------------------------------------------------------ */
 
-/** Owner: toggle whether nearby helpers can see live video for this session. */
+/**
+ * Owner: toggle whether nearby helpers can see live video for this session.
+ *
+ * When disabling (allow=false):
+ *   1. Revoke helper location + session access.
+ *   2. End the active video session so disconnected helpers cannot reconnect.
+ *      The owner can restart the video at any time.
+ *   3. The session stays open — location sharing and SOS notifications
+ *      continue unaffected.
+ */
 export const setAllowHelperVideo = mutation({
   args: {
     sessionId: v.id("emergencySessions"),
@@ -776,7 +789,42 @@ export const setAllowHelperVideo = mutation({
       throw new ConvexError("Session not found.");
     }
     await assertSessionOpen(session, "update video settings");
-    await ctx.db.patch(args.sessionId, { allowHelperVideo: args.allow, updatedAt: Date.now() });
+    const now = Date.now();
+    await ctx.db.patch(args.sessionId, { allowHelperVideo: args.allow, updatedAt: now });
+
+    if (!args.allow) {
+      // Immediately disconnect all nearby helpers from the video room
+      // by ending the video session. Verified contacts keep their
+      // existing subscribe-only access and can re-join if the owner
+      // restarts video later.
+      await revokeHelperAccess(ctx, session._id);
+      const videos = await ctx.db
+        .query("videoSessions")
+        .withIndex("by_emergencySessionId", (q) => q.eq("emergencySessionId", session._id))
+        .collect();
+      for (const video of videos) {
+        if (video.status === "active") {
+          await ctx.db.patch(video._id, { status: "ended", endedAt: now });
+        }
+      }
+      await ctx.db.patch(session._id, { videoActive: false, updatedAt: now });
+
+      // Notify helpers that video access has been revoked.
+      const helpers = await ctx.db
+        .query("emergencyHelpers")
+        .withIndex("by_sessionId", (q) => q.eq("sessionId", session._id))
+        .collect();
+      for (const h of helpers) {
+        await createNotification(ctx, {
+          userId: h.userId,
+          type: "emergency",
+          title: "Video access revoked",
+          body: "The emergency sender has disabled nearby helper video access.",
+          linkTo: `/emergency/${session._id}`,
+        });
+      }
+    }
+
     return { allowHelperVideo: args.allow };
   },
 });

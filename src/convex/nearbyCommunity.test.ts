@@ -9,12 +9,20 @@ import {
 } from "./lib/emergencyLogic";
 
 /**
- * Unit tests for the Nearby Community SOS Assistance feature.
+ * Unit tests for the Nearby Community SOS Assistance feature
+ * + one-way video broadcast model.
  *
  * The pure authorization and geospatial functions are tested here.
  * The server-side `communityAssistance` profile filter and
  * `allowHelperVideo` session flag are enforced in Convex mutations/queries
  * and verified through integration tests with real database rows.
+ *
+ * One-way broadcast rule:
+ *   - Owner (victim) → canPublish: true  (only broadcaster)
+ *   - Verified contact → canPublish: false (view-only)
+ *   - Nearby helper → canPublish: false   (view-only, when allowed)
+ *   This is enforced in joinVideo() and startVideo() through LiveKit token
+ *   grants, not just frontend hiding.
  */
 
 /* ------------------------------------------------------------------ */
@@ -41,7 +49,6 @@ describe("Nearby radius filtering", () => {
   });
 
   it("boundary: exact boundary counts as outside", () => {
-    // haversine(40.7128,-74.006 to 40.7128,-73.9572) ≈ 4.09 km < 5 km → in
     const dist = haversineMeters(SOS_LAT, SOS_LNG, SOS_LAT, -73.9572);
     assert.ok(dist < RADIUS_M, `expected < ${RADIUS_M}, got ${dist}`);
   });
@@ -86,26 +93,31 @@ describe("Nearby helper authorization", () => {
 });
 
 /* ------------------------------------------------------------------ */
-/* Video access — default off for helpers                              */
+/* One-way video broadcast model                                       */
 /* ------------------------------------------------------------------ */
 
-describe("Video access for nearby helpers", () => {
-  it("helpers cannot access video by default (allowHelperVideo not set)", () => {
-    assert.equal(canAccessEmergencyVideo("helper_nearby"), false);
+describe("One-way video broadcast", () => {
+  it("owner always has video access (broadcaster)", () => {
+    assert.equal(canAccessEmergencyVideo("owner"), true);
   });
 
-  it("owner and verified contacts always have video access", () => {
-    assert.equal(canAccessEmergencyVideo("owner"), true);
+  it("verified contacts always have video access (viewers)", () => {
     assert.equal(canAccessEmergencyVideo("verified_contact"), true);
+  });
+
+  it("nearby helpers have video access only via session flag (pure fn returns false)", () => {
+    assert.equal(canAccessEmergencyVideo("helper_nearby"), false);
   });
 
   it("admins and null never have video access", () => {
     assert.equal(canAccessEmergencyVideo("admin"), false);
     assert.equal(canAccessEmergencyVideo(null), false);
   });
-  // NOTE: The `allowHelperVideo` session flag is enforced server-side in
-  // emergencySessions.ts getSession/joinVideo. When allowHelperVideo=true,
-  // the getSession query upgrades the helper's effective video access and
-  // joinVideo issues a LiveKit token. This is tested through integration
-  // tests with real database rows, not through pure functions.
+
+  // The canPublish flag on the LiveKit token is enforced server-side:
+  //   - startVideo (owner): canPublish: true  — only publisher
+  //   - joinVideo (contact/helper): canPublish: false — subscribe only
+  // These values are set in emergencySessions.ts and cannot be overridden
+  // by the frontend. The EmergencyVideoRoom component respects the flag
+  // by hiding camera/mic controls when canPublish=false.
 });

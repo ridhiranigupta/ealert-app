@@ -481,8 +481,8 @@ export default function EmergencySession() {
                 <Video className="size-4 text-violet-600" /> Emergency video
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Optional live video for your verified contacts. Camera and microphone are only used
-                while you have it enabled.
+                Your verified contacts and nearby helpers can watch your live camera feed. You are
+                the only one who can transmit video and audio — this is a one-way broadcast.
               </p>
               {!data.videoConfig.configured ? (
                 <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-700">
@@ -667,8 +667,8 @@ export default function EmergencySession() {
                   url={videoJoin.url}
                   token={videoJoin.token}
                   roomName={videoJoin.roomId ?? ""}
-                  displayName="You"
-                  canPublish
+                  displayName="Verified contact"
+                  canPublish={false}
                   onLeave={() => setVideoJoin(null)}
                 />
               </div>

@@ -33,9 +33,11 @@ export function canAccessEmergencySession(opts: {
 }
 
 /**
- * Live video is restricted to the owner and verified contacts. Nearby
- * helpers must never obtain video — the server never returns video data
- * (or LiveKit tokens) to them.
+ * Live video access: the owner (broadcaster) always has access, verified
+ * contacts are always viewers, and nearby helpers are viewers ONLY when
+ * the owner has enabled allowHelperVideo. Everyone except the owner
+ * receives subscribe-only LiveKit tokens — the victim is the only one
+ * who can transmit video and audio.
  */
 export function canAccessEmergencyVideo(role: SessionAccessRole | null): boolean {
   return role === "owner" || role === "verified_contact";

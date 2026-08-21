@@ -500,8 +500,8 @@ export function EmergencyVideoRoom({
           </>
         ) : (
           <p className="px-2 text-center text-xs text-muted-foreground">
-            You're connected as a verified responder. Use the buttons below if you want to share
-            your camera or microphone too.
+            Viewing the sender's live stream. This is a one-way broadcast — only the emergency
+            sender can transmit video and audio.
           </p>
         )}
         <button
