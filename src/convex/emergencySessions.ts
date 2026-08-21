@@ -26,7 +26,7 @@ const LOCATION_MIN_INTERVAL_MS = 2_000;
 /** Create the emergency session for a fresh SOS alert. */
 export async function createSessionForAlert(
   ctx: MutationCtx,
-  args: { userId: Id<"users">; alertId: Id<"alerts">; now?: number },
+  args: { userId: Id<"users">; alertId: Id<"alerts">; now?: number; allowHelperVideo?: boolean },
 ): Promise<Id<"emergencySessions">> {
   const now = args.now ?? Date.now();
   const id = await ctx.db.insert("emergencySessions", {
@@ -38,6 +38,7 @@ export async function createSessionForAlert(
     locationActive: false,
     videoActive: false,
     expiresAt: now + SESSION_MAX_AGE_MS,
+    allowHelperVideo: args.allowHelperVideo,
   });
   await ctx.db.patch(args.alertId, { sessionId: id });
   return id;
@@ -132,6 +133,13 @@ export const getSession = query({
           .collect()
       : [];
 
+    // When the owner has opted to allow nearby helpers to see video,
+    // helpers also gain video access (role upgrade for this session).
+    const allowHelperVideo = session.allowHelperVideo === true;
+    const helperHasVideo = access === "helper_nearby" && allowHelperVideo;
+    const effectiveVideoAccess =
+      canAccessEmergencyVideo(access) || helperHasVideo;
+
     const myRecipient =
       access !== "owner"
         ? recipients.find((r) => r.recipientUserId === userId) ?? null
@@ -221,7 +229,7 @@ export const getSession = query({
             timestamp: responderLocation.timestamp,
           }
         : null,
-      video: video && canAccessEmergencyVideo(access)
+      video: video && effectiveVideoAccess
         ? {
             provider: video.provider,
             roomId: video.roomId,
@@ -229,13 +237,14 @@ export const getSession = query({
             startedAt: video.startedAt,
           }
         : null,
-      videoConfig: canAccessEmergencyVideo(access)
+      videoConfig: effectiveVideoAccess
         ? {
             configured: videoConfig.configured,
             provider: videoConfig.provider,
             url: videoConfig.url,
           }
         : { configured: false },
+      allowHelperVideo,
       // Nearby helpers notified about this session (owner view only).
       helpers: access === "owner" ? await listHelpersForOwner(ctx, session._id) : undefined,
       // The helper's own record — lets them see distance / respond state.
@@ -469,8 +478,12 @@ export const joinVideo = mutation({
     const { userId, user } = await requireUser(ctx);
     const session = await ctx.db.get(args.sessionId);
     if (!session) throw new ConvexError("Session not found.");
-    if (!(await isVerifiedRecipientOf(ctx, session.userId, userId, session.alertId))) {
-      throw new ConvexError("You don't have access to this emergency session.");
+    const isVerified = await isVerifiedRecipientOf(ctx, session.userId, userId, session.alertId);
+    const helperRow = await findHelperRow(ctx, session._id, userId);
+    // Verified contacts always have video access; nearby helpers only when
+    // the owner has opted in with allowHelperVideo.
+    if (!isVerified && !(helperRow && session.allowHelperVideo)) {
+      throw new ConvexError("You don't have access to the live video for this emergency.");
     }
     if (!session.videoActive) {
       return { configured: false, active: false, error: "No live video is active for this emergency." };
@@ -749,6 +762,24 @@ export const cancelSession = mutation({
 /* ------------------------------------------------------------------ */
 /* Cron: expire stale sessions                                         */
 /* ------------------------------------------------------------------ */
+
+/** Owner: toggle whether nearby helpers can see live video for this session. */
+export const setAllowHelperVideo = mutation({
+  args: {
+    sessionId: v.id("emergencySessions"),
+    allow: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const { userId } = await requireUser(ctx);
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== userId) {
+      throw new ConvexError("Session not found.");
+    }
+    await assertSessionOpen(session, "update video settings");
+    await ctx.db.patch(args.sessionId, { allowHelperVideo: args.allow, updatedAt: Date.now() });
+    return { allowHelperVideo: args.allow };
+  },
+});
 
 export const expireStaleSessions = internalMutation({
   args: {},

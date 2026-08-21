@@ -243,6 +243,10 @@ const schema = defineSchema(
       emergencyNote: v.optional(v.string()),
       photo: v.optional(v.string()),
       setupComplete: v.optional(v.boolean()),
+      // Opt-out: when false, the user will not appear as a nearby helper
+      // in other users' emergency radius broadcasts. Defaults to true
+      // (opt-in model — presence in userLocations + this flag = discoverable).
+      communityAssistance: v.optional(v.boolean()),
     }).index("by_userId", ["userId"]),
 
     // Trusted people to contact during an emergency (max 10 per user).
@@ -427,6 +431,9 @@ const schema = defineSchema(
       responderName: v.optional(v.string()),
       responderLocationShared: v.optional(v.boolean()),
       expiresAt: v.optional(v.number()),
+      // When true, nearby helpers (helper_nearby role) can also join the
+      // live video stream. When false, only verified contacts see video.
+      allowHelperVideo: v.optional(v.boolean()),
     })
       .index("by_userId", ["userId"])
       .index("by_alertId", ["alertId"])

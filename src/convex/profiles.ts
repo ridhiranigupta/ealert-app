@@ -54,6 +54,7 @@ export const upsertProfile = mutation({
     emergencyNote: v.optional(v.string()),
     photo: v.optional(v.string()),
     completeSetup: v.optional(v.boolean()),
+    communityAssistance: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { userId } = await requireUser(ctx);
@@ -77,15 +78,18 @@ export const upsertProfile = mutation({
       photo: cleanInput(args.photo, 500),
     };
 
+    // communityAssistance is a boolean flag — not subject to cleanInput.
+    const communityAssistance = args.communityAssistance;
+
     const existing = await ctx.db
       .query("profiles")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .first();
 
     if (existing) {
-      await ctx.db.patch(existing._id, fields);
+      await ctx.db.patch(existing._id, { ...fields, ...(communityAssistance !== undefined ? { communityAssistance } : {}) });
     } else {
-      await ctx.db.insert("profiles", { userId, ...fields });
+      await ctx.db.insert("profiles", { userId, ...fields, ...(communityAssistance !== undefined ? { communityAssistance } : {}) });
     }
 
     // Keep the account-level phone in sync (canonical form). Onboarding

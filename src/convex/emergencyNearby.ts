@@ -92,6 +92,13 @@ export async function findNearbyHelpers(
     const user = await ctx.db.get(spot.userId);
     if (!user) continue;
     if (user.status !== "active") continue; // suspended/disabled users excluded
+    // Respect community assistance opt-out: users who explicitly disabled
+    // community assistance are excluded from the nearby broadcast.
+    const profile = await ctx.db
+      .query("profiles")
+      .withIndex("by_userId", (q) => q.eq("userId", spot.userId))
+      .first();
+    if (profile && profile.communityAssistance === false) continue;
     const distance = haversineMeters(args.lat, args.lng, spot.lat, spot.lng);
     if (distance > args.radiusMeters) continue;
     candidates.push({
@@ -139,7 +146,7 @@ export async function notifyNearbyHelpers(
     await createNotification(ctx, {
       userId: helper.userId,
       type: "emergency",
-      title: "🚨 Nearby Emergency Alert",
+      title: "🚨 Someone near you needs help.",
       body: `${firstName} needs help nearby (~${formatDistanceMeters(helper.distanceMeters)} away). Tap to see the location and offer help.`,
       linkTo: `/emergency/${args.sessionId}`,
     });
@@ -161,7 +168,7 @@ export async function notifyNearbyHelpers(
   if (devices.length > 0) {
     const push = await dispatchEmergencyPush({
       devices,
-      title: "🚨 Nearby Emergency Alert",
+      title: "🚨 Someone near you needs help.",
       body: `${firstName} needs help nearby. Tap to see the location and offer help.`,
       data: { type: "emergency", alertId: args.alertId, sessionId: args.sessionId },
     });

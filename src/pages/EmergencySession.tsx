@@ -84,6 +84,7 @@ export default function EmergencySession() {
   const respondNearby = useMutation(api.emergencyNearby.respondNearby);
   const shareHelperLocation = useMutation(api.emergencyNearby.shareHelperLocation);
   const stopHelperLocation = useMutation(api.emergencyNearby.stopHelperLocation);
+  const setAllowHelperVideo = useMutation(api.emergencySessions.setAllowHelperVideo);
   const online = useOnlineStatus();
 
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -93,6 +94,7 @@ export default function EmergencySession() {
   const [shareResponderLocation, setShareResponderLocation] = useState(false);
   const [videoBusy, setVideoBusy] = useState(false);
   const [videoJoin, setVideoJoin] = useState<{ url?: string; token?: string; roomId?: string; provider?: string } | null>(null);
+  const [helperVideoBusy, setHelperVideoBusy] = useState(false);
   const [locationStreaming, setLocationStreaming] = useState(false);
   const [lastSharedAt, setLastSharedAt] = useState<number | null>(null);
   const watchRef = useRef<number | null>(null);
@@ -317,6 +319,18 @@ export default function EmergencySession() {
     }
   };
 
+  const handleToggleHelperVideo = async (allow: boolean) => {
+    setHelperVideoBusy(true);
+    try {
+      await setAllowHelperVideo({ sessionId, allow });
+      toast.success(allow ? "Nearby helpers can now view live video." : "Nearby helpers can no longer view live video.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update video setting.");
+    } finally {
+      setHelperVideoBusy(false);
+    }
+  };
+
   if (!id) {
     return (
       <div className="space-y-6">
@@ -519,6 +533,21 @@ export default function EmergencySession() {
                   Start emergency video
                 </Button>
               )}
+              <div className="mt-4 rounded-xl border border-border bg-card/50 px-3.5 py-2.5">
+                <label className="flex items-center gap-2.5 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={data.allowHelperVideo ?? false}
+                    onChange={(e) => handleToggleHelperVideo(e.target.checked)}
+                    disabled={helperVideoBusy}
+                    className="size-3.5 rounded border-border accent-violet-500"
+                  />
+                  Allow nearby helpers to view live video
+                </label>
+                <p className="mt-1 text-[10px] text-muted-foreground/70">
+                  When enabled, nearby helpers who respond can also join the video stream.
+                </p>
+              </div>
             </div>
 
             {/* Responder status */}
@@ -842,10 +871,49 @@ export default function EmergencySession() {
             )}
 
             <p className="mt-4 border-t border-border pt-3 text-[11px] leading-relaxed text-muted-foreground">
-              As a nearby helper you can see the location and offer help — you don't get access to
-              video, audio or the sender's private contact details.
+              As a nearby helper you can see the location and offer help. The sender controls
+              whether nearby helpers can also view live video.
             </p>
           </div>
+
+          {/* Live video — only when the owner enabled it for helpers */}
+          {data.allowHelperVideo && (
+            <div className="rounded-3xl border border-border bg-card p-6">
+              <h2 className="flex items-center gap-2 font-display text-base font-semibold">
+                <Video className="size-4 text-violet-600" /> Live video
+              </h2>
+              {videoJoin?.token && videoJoin.url ? (
+                <div className="mt-3">
+                  <EmergencyVideoRoom
+                    url={videoJoin.url}
+                    token={videoJoin.token}
+                    roomName={videoJoin.roomId ?? ""}
+                    displayName="Nearby helper"
+                    canPublish={false}
+                    onLeave={() => setVideoJoin(null)}
+                  />
+                </div>
+              ) : data.session.videoActive && data.videoConfig.configured ? (
+                <>
+                  <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                    <span className="size-2 animate-pulse rounded-full bg-emerald-500" /> Live video active
+                  </p>
+                  <Button
+                    className="mt-3 w-full rounded-xl bg-violet-500 text-white hover:bg-violet-600"
+                    onClick={handleJoinVideo}
+                    disabled={videoBusy}
+                  >
+                    {videoBusy ? <Loader2 className="size-4 animate-spin" /> : <Video className="size-4" />}
+                    Join live video
+                  </Button>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Live video has not been started by the sender yet.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

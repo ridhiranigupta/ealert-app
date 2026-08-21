@@ -111,6 +111,7 @@ export const triggerSOS = mutation({
     accuracy: v.optional(v.number()),
     locationLabel: v.optional(v.string()),
     note: v.optional(v.string()),
+    allowHelperVideo: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { userId, user } = await requireUser(ctx);
@@ -195,7 +196,7 @@ export const triggerSOS = mutation({
     });
 
     // ── One emergency session per SOS (app-to-app lifecycle) ──
-    const sessionId = await createSessionForAlert(ctx, { userId, alertId, now });
+    const sessionId = await createSessionForAlert(ctx, { userId, alertId, now, allowHelperVideo: args.allowHelperVideo });
 
     // ── Split recipients: verified EAlert contacts (push-first) vs legacy ──
     // Verified contacts never receive traditional SMS — they get an app push.

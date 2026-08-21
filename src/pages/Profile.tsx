@@ -76,6 +76,7 @@ export default function Profile() {
     medicalInfo: "",
     emergencyNote: "",
     photo: "",
+    communityAssistance: true,
   });
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -100,6 +101,7 @@ export default function Profile() {
       medicalInfo: profile.medicalInfo ?? "",
       emergencyNote: profile.emergencyNote ?? "",
       photo: profile.photo ?? "",
+      communityAssistance: profile.communityAssistance !== false,
     });
   }, [profile]);
 
@@ -140,6 +142,7 @@ export default function Profile() {
         medicalInfo: form.medicalInfo || undefined,
         emergencyNote: form.emergencyNote || undefined,
         photo: form.photo || undefined,
+        communityAssistance: form.communityAssistance,
       });
       await updateAccount({
         name: form.fullName || undefined,
@@ -297,6 +300,20 @@ export default function Profile() {
               <Field label="Note for contacts in an emergency" className="sm:col-span-2">
                 <Textarea value={form.emergencyNote} onChange={(e) => set("emergencyNote")(e.target.value)} placeholder="What should your contacts know first?" className="min-h-20 rounded-xl" />
               </Field>
+            </div>
+            <div className="mt-4 rounded-xl border border-border bg-card/50 px-3.5 py-2.5">
+              <label className="flex items-center gap-2.5 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={form.communityAssistance}
+                  onChange={(e) => setForm((f) => ({ ...f, communityAssistance: e.target.checked }))}
+                  className="size-3.5 rounded border-border accent-violet-500"
+                />
+                Appear as a nearby helper during others' emergencies
+              </label>
+              <p className="mt-1 text-[10px] text-muted-foreground/70">
+                When enabled, other EAlert users within 5 km can see you as a nearby helper when they trigger an SOS.
+              </p>
             </div>
             <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-violet-200 bg-violet-50 px-3.5 py-3 text-xs leading-relaxed text-violet-700/90">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-violet-600" />
