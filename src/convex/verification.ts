@@ -58,7 +58,10 @@ export const getVerificationStatus = query({
 /* Phone verification                                                  */
 /* ------------------------------------------------------------------ */
 
-/** Send a 6-digit OTP to the user's phone number via SMS. */
+/**
+ * Store a 6-digit phone OTP (data-only — no network call).
+ * Called internally by the sendPhoneOtp action.
+ */
 export const sendPhoneOtp = mutation({
   args: {},
   handler: async (ctx) => {
@@ -77,7 +80,6 @@ export const sendPhoneOtp = mutation({
     const otp = generateOtp();
     const now = Date.now();
 
-    // Store the OTP in the phoneOtpCodes table.
     // Clean up any previous phone OTPs for this user.
     const existing = await ctx.db
       .query("phoneOtpCodes")
@@ -93,47 +95,7 @@ export const sendPhoneOtp = mutation({
       expiresAt: now + OTP_MAX_AGE_MS,
     });
 
-    // Send the OTP via SMS using native fetch (Convex V8 runtime).
-    const maskedPhone = user.phone.replace(/(\d{2})\d+(\d{2})/, "$1***$2");
-    console.log(`[verify] sendPhoneOtp → to=${maskedPhone} otp_length=${otp.length}`);
-    try {
-      const res = await fetch("https://auth.freebuff.app/send_otp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": "fb_email_2crN1hqIArZP2bEfvjp5Qik4",
-        },
-        body: JSON.stringify({
-          to: user.phone,
-          otp,
-          appName: process.env.VLY_APP_NAME || "EAlert",
-        }),
-      });
-      console.log(`[verify] sendPhoneOtp ← status=${res.status}`);
-      const body = await res.text();
-      console.log(`[verify] sendPhoneOtp body=${body.slice(0, 300)}`);
-      if (!res.ok) {
-        console.error(`[verify] sendPhoneOtp FAILED status=${res.status} body=${body.slice(0, 300)}`);
-        throw new ConvexError(
-          `Could not send verification code (provider HTTP ${res.status}). Please try again.`,
-        );
-      }
-    } catch (err) {
-      console.error(`[verify] sendPhoneOtp EXCEPTION:`, err);
-      // If the error is already a ConvexError (from above), re-throw it.
-      if (err instanceof ConvexError) throw err;
-      throw new ConvexError(
-        `Could not send verification code: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-
-    await logActivity(ctx, {
-      userId,
-      action: "phone_otp_sent",
-      result: "success",
-    });
-
-    return { sent: true, phone: user.phone };
+    return { otp, phone: user.phone };
   },
 });
 
@@ -209,7 +171,10 @@ export const verifyPhoneOtp = mutation({
 /* Email verification                                                  */
 /* ------------------------------------------------------------------ */
 
-/** Send a verification email with a secure token. */
+/**
+ * Store an email verification token (data-only — no network call).
+ * Called internally by the sendEmailVerification action.
+ */
 export const sendEmailVerification = mutation({
   args: {},
   handler: async (ctx) => {
@@ -245,46 +210,7 @@ export const sendEmailVerification = mutation({
       expiresAt: now + EMAIL_TOKEN_MAX_AGE_MS,
     });
 
-    // Send verification email via fetch (Convex V8 runtime).
-    const maskedEmail = email.replace(/(.{2}).+(@.+)/, "$1***$2");
-    console.log(`[verify] sendEmailVerification → to=${maskedEmail}`);
-    try {
-      const res = await fetch("https://auth.freebuff.app/send_otp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": "fb_email_2crN1hqIArZP2bEfvjp5Qik4",
-        },
-        body: JSON.stringify({
-          to: email,
-          otp: token,
-          appName: process.env.VLY_APP_NAME || "EAlert",
-        }),
-      });
-      console.log(`[verify] sendEmailVerification ← status=${res.status}`);
-      const body = await res.text();
-      console.log(`[verify] sendEmailVerification body=${body.slice(0, 300)}`);
-      if (!res.ok) {
-        console.error(`[verify] sendEmailVerification FAILED status=${res.status} body=${body.slice(0, 300)}`);
-        throw new ConvexError(
-          `Could not send verification email (provider HTTP ${res.status}). Please try again.`,
-        );
-      }
-    } catch (err) {
-      console.error(`[verify] sendEmailVerification EXCEPTION:`, err);
-      if (err instanceof ConvexError) throw err;
-      throw new ConvexError(
-        `Could not send verification email: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-
-    await logActivity(ctx, {
-      userId,
-      action: "email_verification_sent",
-      result: "success",
-    });
-
-    return { sent: true, email };
+    return { token, email };
   },
 });
 

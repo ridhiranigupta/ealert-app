@@ -1,5 +1,5 @@
 import { api } from "@/convex/_generated/api";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import {
   AlertTriangle,
   BellOff,
@@ -401,9 +401,9 @@ function VerificationCard({
       }
     | undefined;
 }) {
-  const sendPhoneOtp = useMutation(api.verification.sendPhoneOtp);
+  const sendPhoneOtpAction = useAction(api.verificationActions.sendPhoneOtp);
   const verifyPhoneOtp = useMutation(api.verification.verifyPhoneOtp);
-  const sendEmailVerification = useMutation(api.verification.sendEmailVerification);
+  const sendEmailVerificationAction = useAction(api.verificationActions.sendEmailVerification);
   const verifyEmailToken = useMutation(api.verification.verifyEmailToken);
 
   const [phoneOtpSent, setPhoneOtpSent] = useState(false);
@@ -422,12 +422,12 @@ function VerificationCard({
   const handleSendPhoneOtp = async () => {
     setPhoneSending(true);
     try {
-      const result = await sendPhoneOtp();
-      if (result.alreadyVerified) {
-        toast.success("Phone is already verified");
-      } else {
+      const result = await sendPhoneOtpAction();
+      if ("sent" in result && result.sent) {
         setPhoneOtpSent(true);
         toast.success("Verification code sent to your phone");
+      } else if ("error" in result) {
+        toast.error(result.error);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not send code.");
@@ -457,12 +457,12 @@ function VerificationCard({
   const handleSendEmailVerification = async () => {
     setEmailSending(true);
     try {
-      const result = await sendEmailVerification();
-      if (result.alreadyVerified) {
-        toast.success("Email is already verified");
-      } else {
+      const result = await sendEmailVerificationAction();
+      if ("sent" in result && result.sent) {
         setEmailSent(true);
         toast.success("Verification email sent");
+      } else if ("error" in result) {
+        toast.error(result.error);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not send email.");
