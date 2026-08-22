@@ -62,11 +62,19 @@ export const sendPhoneOtp = action({
 
       if (!res.ok) {
         console.error(
-          `[verify] sendPhoneOtp FAILED status=${res.status} body=${body.slice(0, 300)}`,
+          `[verify] sendPhoneOtp FAILED status=${res.status} body=${body.slice(0, 500)}`,
         );
+        // Surface the provider's actual error message to the client
+        let providerMessage = "";
+        try {
+          const parsed = JSON.parse(body);
+          providerMessage = parsed.message || parsed.error || parsed.detail || body;
+        } catch {
+          providerMessage = body;
+        }
         return {
           sent: false,
-          error: `Provider returned HTTP ${res.status}. Please try again.`,
+          error: `Provider error (${res.status}): ${providerMessage.slice(0, 200)}`,
         };
       }
 
@@ -132,11 +140,19 @@ export const sendEmailVerification = action({
 
       if (!res.ok) {
         console.error(
-          `[verify] sendEmailVerification FAILED status=${res.status} body=${body.slice(0, 300)}`,
+          `[verify] sendEmailVerification FAILED status=${res.status} body=${body.slice(0, 500)}`,
         );
+        // Surface the provider's actual error message to the client
+        let providerMessage = "";
+        try {
+          const parsed = JSON.parse(body);
+          providerMessage = parsed.message || parsed.error || parsed.detail || body;
+        } catch {
+          providerMessage = body;
+        }
         return {
           sent: false,
-          error: `Provider returned HTTP ${res.status}. Please try again.`,
+          error: `Provider error (${res.status}): ${providerMessage.slice(0, 200)}`,
         };
       }
 
