@@ -192,7 +192,7 @@ export const sendEmailVerification = mutation({
       );
     }
 
-    const token = generateToken();
+    const token = generateOtp();
     const now = Date.now();
 
     // Clean up any previous email verification tokens for this user.
@@ -224,8 +224,8 @@ export const verifyEmailToken = mutation({
       return { alreadyVerified: true };
     }
 
-    if (args.token.length < 10) {
-      throw new ConvexError("Invalid verification token.");
+    if (args.token.length !== 6 || !/^\d{6}$/.test(args.token)) {
+      throw new ConvexError("Invalid verification code.");
     }
 
     const now = Date.now();

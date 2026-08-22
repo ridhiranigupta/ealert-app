@@ -52,7 +52,7 @@ export const sendPhoneOtp = action({
         body: JSON.stringify({
           to: phone,
           otp,
-          appName: process.env.VLY_APP_NAME || "EAlert",
+          appName: process.env.VLY_APP_NAME || "a freebuff.com application",
         }),
       });
 
@@ -126,7 +126,7 @@ export const sendEmailVerification = action({
         body: JSON.stringify({
           to: email,
           otp: token,
-          appName: process.env.VLY_APP_NAME || "EAlert",
+          appName: process.env.VLY_APP_NAME || "a freebuff.com application",
         }),
       });
 

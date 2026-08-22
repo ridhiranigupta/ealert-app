@@ -561,14 +561,14 @@ function VerificationCard({
                 type="text"
                 value={emailToken}
                 onChange={(e) => setEmailToken(e.target.value)}
-                placeholder="Paste token"
+                placeholder="Enter code"
                 className="h-8 w-24 rounded-lg text-center font-mono text-xs"
               />
               <Button
                 size="sm"
                 className="h-8 rounded-lg text-xs"
                 onClick={handleVerifyEmail}
-                disabled={emailVerifying || emailToken.length < 10}
+                disabled={emailVerifying || emailToken.length < 6}
               >
                 {emailVerifying ? <Loader2 className="size-3 animate-spin" /> : "Verify"}
               </Button>
