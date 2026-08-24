@@ -35,7 +35,11 @@ export const sendPhoneOtp = action({
     }
 
     const { otp, phone } = result;
-    const maskedPhone = phone.replace(/(\d{2})\d+(\d{2})/, "$1***$2");
+
+    // canonicalPhone strips the '+' prefix — re-add it for the provider
+    // which expects E.164 format (+<country><number>).
+    const phoneE164 = phone.startsWith("+") ? phone : `+${phone}`;
+    const maskedPhone = phoneE164.replace(/(\d{2})\d+(\d{2})/, "$1***$2");
 
     console.log(
       `[verify] sendPhoneOtp action -> to=${maskedPhone} otp_length=${otp.length}`,
@@ -43,17 +47,22 @@ export const sendPhoneOtp = action({
 
     // 2. Send SMS via fetch (safe in actions).
     try {
+      const payload = {
+        to: phoneE164,
+        otp,
+        appName: process.env.VLY_APP_NAME || "a freebuff.com application",
+      };
+      console.log(
+        `[verify] sendPhoneOtp payload -> to=${maskedPhone} appName=${payload.appName}`,
+      );
+
       const res = await fetch("https://auth.freebuff.app/send_otp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-api-key": "fb_email_2crN1hqIArZP2bEfvjp5Qik4",
         },
-        body: JSON.stringify({
-          to: phone,
-          otp,
-          appName: process.env.VLY_APP_NAME || "a freebuff.com application",
-        }),
+        body: JSON.stringify(payload),
       });
 
       console.log(`[verify] sendPhoneOtp action <- status=${res.status}`);
