@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { cleanInput, requireUser, requirePhoneVerified } from "./lib/session";
+import { cleanInput, requireUser } from "./lib/session";
 import { isDuplicatePhone, validatePhone } from "./lib/alertLogic";
 import { logActivity } from "./services/activity";
 import { createNotification } from "./services/notifications";
@@ -40,7 +40,7 @@ export const add = mutation({
     channels: v.optional(v.array(contactChannelValidator)),
   },
   handler: async (ctx, args) => {
-    const { userId } = await requirePhoneVerified(ctx);
+    const { userId } = await requireUser(ctx);
 
     const name = cleanInput(args.name, 80);
     const relationship = cleanInput(args.relationship, 40);

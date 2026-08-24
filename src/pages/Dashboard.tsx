@@ -56,7 +56,6 @@ export default function Dashboard() {
   const activeSession = useQuery(api.emergencySessions.myActiveSession);
   const contactSessions = useQuery(api.emergencySessions.listSessionsForContact);
   const nearbyEmergencies = useQuery(api.emergencyNearby.myNearbyEmergencies);
-  const verificationStatus = useQuery(api.verification.getVerificationStatus);
   const respondNearby = useMutation(api.emergencyNearby.respondNearby);
   const navigate = useNavigate();
   const [helpingId, setHelpingId] = useState<string | null>(null);
@@ -259,37 +258,12 @@ export default function Dashboard() {
         </motion.div>
       )}
 
-      {/* Verification warning */}
-      {verificationStatus && !verificationStatus.phoneVerified && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="rounded-[1.5rem] border border-amber-200 bg-gradient-to-br from-amber-50 via-amber-50/40 to-white p-5 sm:p-6"
-        >
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-              <ShieldCheck className="size-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-base font-bold text-amber-700">Phone verification required</p>
-              <p className="text-xs text-muted-foreground">
-                Verify your phone number to unlock SOS, emergency contacts, and nearby helpers.
-              </p>
-            </div>
-            <Button asChild size="sm" className="rounded-xl bg-amber-500 text-white hover:bg-amber-600">
-              <Link to="/profile">Verify now <ArrowRight className="size-4" /></Link>
-            </Button>
-          </div>
-        </motion.div>
-      )}
-
       {/* SOS */}
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.05 }}
-        className={`relative overflow-hidden rounded-[2rem] border bg-card px-6 py-10 text-center ${verificationStatus && !verificationStatus.phoneVerified ? "border-amber-200 opacity-60" : "border-border"}`}
+        className="relative overflow-hidden rounded-[2rem] border border-border bg-card px-6 py-10 text-center"
       >
         <div className="pointer-events-none absolute -top-24 left-1/2 h-64 w-[520px] -translate-x-1/2 rounded-full bg-rose-500/15 blur-3xl" />
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-rose-300">

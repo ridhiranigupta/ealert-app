@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { requireAdmin, requireUser, requirePhoneVerified } from "./lib/session";
+import { requireAdmin, requireUser } from "./lib/session";
 import { logActivity } from "./services/activity";
 import { createNotification } from "./services/notifications";
 import {
@@ -114,7 +114,7 @@ export const triggerSOS = mutation({
     allowHelperVideo: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const { userId, user } = await requirePhoneVerified(ctx);
+    const { userId, user } = await requireUser(ctx);
 
     // ── Idempotency: reuse an existing alert for the same client action ──
     const clientAlertId =
